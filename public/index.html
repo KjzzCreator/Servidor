@@ -49,18 +49,20 @@
             font-size: 14px;
             color: #aaa;
         }
+        /* Painel do Placar / Leaderboard */
         .leaderboard {
             position: absolute;
             top: 10px;
             right: 15px;
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(0, 0, 0, 0.75);
             padding: 8px 12px;
             border-radius: 6px;
             text-align: left;
             font-size: 11px;
             width: 130px;
             pointer-events: none;
-            border: 1px solid #333;
+            border: 1px solid #444;
+            z-index: 10;
         }
         .leaderboard h4 { margin: 0 0 4px 0; color: #00ffcc; font-size: 12px; text-align: center; }
         .leaderboard ol { margin: 0; padding-left: 15px; color: #fff; }
@@ -90,9 +92,10 @@
     <div id="game-screen" class="screen" style="position: relative;">
         <div class="scoreboard-container">
             <span id="display-name">Jogador</span>
-            <span>Tamanho: <strong id="score">10</strong></span>
+            <span>Tamanho: <strong id="score">15</strong></span>
         </div>
         
+        <!-- RANKING VISÍVEL -->
         <div class="leaderboard">
             <h4>🏆 Placar</h4>
             <ol id="rank-list">
@@ -161,7 +164,7 @@
     });
 
     socket.on('die', () => {
-        alert("Você bateu em outro jogador e foi eliminado! Renascendo em breve...");
+        alert("Você bateu em outro jogador e foi eliminado! Renascendo...");
     });
 
     function updateLeaderboard() {
@@ -170,9 +173,11 @@
 
         let rankHtml = "";
         playersArr.slice(0, 5).forEach(p => {
-            let isMe = p.id === socket.id ? "style='color:#00ffcc;'" : "";
+            let isMe = p.id === socket.id ? "style='color:#00ffcc; font-weight:bold;'" : "";
             rankHtml += `<li ${isMe}>${p.name} (${p.score})</li>`;
         });
+        
+        // Correção aplicada aqui para atualizar o HTML corretamente
         document.getElementById("rank-list").innerHTML = rankHtml || "<li>Vazio</li>";
     }
 
@@ -192,6 +197,7 @@
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            // Desenhar Comidas
             serverState.foods.forEach(f => {
                 ctx.fillStyle = f.color;
                 ctx.beginPath();
@@ -199,6 +205,7 @@
                 ctx.fill();
             });
 
+            // Desenhar Cobras
             for (let id in serverState.players) {
                 let p = serverState.players[id];
                 if (!p.alive) continue;
