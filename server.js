@@ -9,157 +9,160 @@ const io = new Server(server);
 app.use(express.static('public'));
 
 let players = {};
-let foods = [];
+let bullets = [];
 
-const worldWidth = 1200;
-const worldHeight = 1200;
+const mapSize = 1600;
 
-// Gerar comidas iniciais
-for (let i = 0; i < 150; i++) {
-    foods.push({
-        id: Math.random().toString(),
-        x: Math.random() * worldWidth,
-        y: Math.random() * worldHeight,
-        color: `hsl(${Math.random() * 360}, 100%, 60%)`
-    });
-}
+// Configuração das 4 armas solicitadas
+const weaponsConfig = {
+    glock: { name: 'Glock 17', damage: 18, speed: 12, fireRate: 350, ammoMax: 15, range: 400 },
+    mp5:   { name: 'MP5',      damage: 14, speed: 14, fireRate: 150, ammoMax: 30, range: 500 },
+    ak47:  { name: 'AK-47',    damage: 32, speed: 16, fireRate: 250, ammoMax: 25, range: 700 },
+    xm8:   { name: 'XM8',      damage: 26, speed: 18, fireRate: 200, ammoMax: 30, range: 750 }
+};
 
 io.on('connection', (socket) => {
-    console.log(`Jogador conectado: ${socket.id}`);
+    console.log(`Sobrevivente conectado: ${socket.id}`);
 
     socket.on('joinGame', (data) => {
-        let startX = Math.random() * (worldWidth - 400) + 200;
-        let startY = Math.random() * (worldHeight - 400) + 200;
+        let weapon = weaponsConfig[data.weapon] ? data.weapon : 'glock';
         
         players[socket.id] = {
             id: socket.id,
-            name: data.name,
-            skin: data.skin,
-            snake: [
-                { x: startX, y: startY },
-                { x: startX, y: startY + 12 },
-                { x: startX, y: startY + 24 },
-                { x: startX, y: startY + 36 },
-                { x: startX, y: startY + 48 }
-            ],
-            score: 15,
-            alive: true
+            name: data.name || 'Convidado',
+            skin: data.skin || 'player_blue',
+            weapon: weapon,
+            x: Math.random() * (mapSize - 400) + 200,
+            y: Math.random() * (mapSize - 400) + 200,
+            angle: 0,
+            hp: 100,
+            ammo: weaponsConfig[weapon].ammoMax,
+            kills: 0,
+            alive: true,
+            lastShot: 0
         };
+
+        // Avisa no chat global que entrou
+        io.emit('chatMessage', { sender: 'Sistema', text: `${players[socket.id].name} caiu de paraquedas na ilha!` });
     });
 
-    socket.on('updateMovement', (target) => {
-        let player = players[socket.id];
-        if (!player || !player.alive) return;
+    socket.on('playerMove', (movement) => {
+        let p = players[socket.id];
+        if (!p || !p.alive) return;
 
-        let head = player.snake[0];
-        let angle = Math.atan2(target.y - head.y, target.x - head.x);
-        let speed = 2.0; // Velocidade um pouco mais fluida
+        p.x = Math.max(20, Math.min(mapSize - 20, movement.x));
+        p.y = Math.max(20, Math.min(mapSize - 20, movement.y));
+        p.angle = movement.angle;
+    });
 
-        let newX = head.x + Math.cos(angle) * speed;
-        let newY = head.y + Math.sin(angle) * speed;
+    socket.on('shoot', () => {
+        let p = players[socket.id];
+        if (!p || !p.alive) return;
 
-        // Morrer se bater nas paredes da arena
-        if (newX < 0 || newX > worldWidth || newY < 0 || newY > worldHeight) {
-            killPlayer(socket.id);
-            return;
-        }
+        let now = Date.now();
+        let wConfig = weaponsConfig[p.weapon];
 
-        let newHead = { x: newX, y: newY };
-        player.snake.unshift(newHead);
+        if (now - p.lastShot < wConfig.fireRate) return;
+        if (p.ammo <= 0) return;
 
-        // Checar colisão com comidas
-        let ate = false;
-        for (let i = foods.length - 1; i >= 0; i--) {
-            let f = foods[i];
-            let dist = Math.hypot(newHead.x - f.x, newHead.y - f.y);
-            if (dist < 16) {
-                foods.splice(i, 1);
-                foods.push({
-                    id: Math.random().toString(),
-                    x: Math.random() * worldWidth,
-                    y: Math.random() * worldHeight,
-                    color: `hsl(${Math.random() * 360}, 100%, 60%)`
-                });
-                ate = true;
-                break;
-            }
-        }
+        p.ammo--;
+        p.lastShot = now;
 
-        if (!ate) {
-            player.snake.pop();
-        } else {
-            player.snake.push({ ...player.snake[player.snake.length - 1] });
-        }
-        player.score = player.snake.length;
+        // Cria o projétil disparado
+        bullets.push({
+            id: Math.random().toString(),
+            ownerId: socket.id,
+            x: p.x + Math.cos(p.angle) * 25,
+            y: p.y + Math.sin(p.angle) * 25,
+            vx: Math.cos(p.angle) * wConfig.speed,
+            vy: Math.sin(p.angle) * wConfig.speed,
+            damage: wConfig.damage,
+            range: wConfig.range,
+            travelled: 0
+        });
+    });
 
-        // ==========================================
-        // COLISÃO ROBUSTA COM OUTROS JOGADORES
-        // ==========================================
-        for (let id in players) {
-            let p = players[id];
-            if (!p.alive || id === socket.id) continue;
+    socket.on('reload', () => {
+        let p = players[socket.id];
+        if (!p || !p.alive) return;
+        p.ammo = weaponsConfig[p.weapon].ammoMax;
+    });
 
-            // Verifica colisão da cabeça com qualquer parte do corpo do oponente
-            for (let j = 0; j < p.snake.length; j++) {
-                let part = p.snake[j];
-                let dist = Math.hypot(newHead.x - part.x, newHead.y - part.y);
-                
-                // Distância de 14 pixels garante o toque certeiro na cobra inimiga
-                if (dist < 14) {
-                    killPlayer(socket.id);
-                    return;
-                }
-            }
-        }
+    socket.on('chatMessage', (msgText) => {
+        let p = players[socket.id];
+        if (!p) return;
+        let cleanText = msgText.substring(0, 100);
+        io.emit('chatMessage', { sender: p.name, text: cleanText });
     });
 
     socket.on('disconnect', () => {
         if (players[socket.id]) {
-            turnSnakeIntoFood(players[socket.id]);
+            io.emit('chatMessage', { sender: 'Sistema', text: `${players[socket.id].name} foi eliminado da partida.` });
             delete players[socket.id];
         }
     });
 });
 
-function killPlayer(id) {
-    if (!players[id] || !players[id].alive) return;
-    players[id].alive = false;
-    turnSnakeIntoFood(players[id]);
-    io.to(id).emit('die');
-    
-    setTimeout(() => {
-        if (players[id]) {
-            let startX = Math.random() * (worldWidth - 400) + 200;
-            let startY = Math.random() * (worldHeight - 400) + 200;
-            players[id].snake = [
-                { x: startX, y: startY },
-                { x: startX, y: startY + 12 },
-                { x: startX, y: startY + 24 }
-            ];
-            players[id].score = 15;
-            players[id].alive = true;
-        }
-    }, 2000);
-}
-
-function turnSnakeIntoFood(player) {
-    player.snake.forEach((part, index) => {
-        if (index % 2 === 0) {
-            foods.push({
-                id: Math.random().toString(),
-                x: part.x + (Math.random() * 20 - 10),
-                y: part.y + (Math.random() * 20 - 10),
-                color: player.skin === 'rainbow' ? '#ff00ff' : '#00ffcc'
-            });
-        }
-    });
-}
-
+// Loop principal do jogo no servidor (60 FPS)
 setInterval(() => {
-    io.emit('gameState', { players, foods });
-}, 1000 / 30);
+    // Atualiza balas
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        let b = bullets[i];
+        b.x += b.vx;
+        b.y += b.vy;
+        b.travelled += Math.hypot(b.vx, b.vy);
+
+        // Remove se passar do alcance máximo ou sair do mapa
+        if (b.travelled >= b.range || b.x < 0 || b.x > mapSize || b.y < 0 || b.y > mapSize) {
+            bullets.splice(i, 1);
+            continue;
+        }
+
+        // Colisão com jogadores
+        let hit = false;
+        for (let id in players) {
+            let p = players[id];
+            if (!p.alive || id === b.ownerId) continue;
+
+            let dist = Math.hypot(p.x - b.x, p.y - b.y);
+            if (dist < 18) { // Acertou o player
+                p.hp -= b.damage;
+                hit = true;
+
+                // Verifica se morreu
+                if (p.hp <= 0) {
+                    p.alive = false;
+                    p.hp = 0;
+                    
+                    let killer = players[b.ownerId];
+                    if (killer) {
+                        killer.kills++;
+                        io.emit('chatMessage', { sender: '💀', text: `${killer.name} eliminou ${p.name}!` });
+                    }
+
+                    // Respawn automático após 3 segundos
+                    setTimeout(() => {
+                        if (players[id]) {
+                            players[id].hp = 100;
+                            players[id].ammo = weaponsConfig[players[id].weapon].ammoMax;
+                            players[id].x = Math.random() * (mapSize - 400) + 200;
+                            players[id].y = Math.random() * (mapSize - 400) + 200;
+                            players[id].alive = true;
+                        }
+                    }, 3000);
+                }
+                break;
+            }
+        }
+        if (hit) {
+            bullets.splice(i, 1);
+        }
+    }
+
+    io.emit('gameState', { players, bullets });
+}, 1000 / 60);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
+    console.log(`Battle Royale rodando na porta ${PORT}`);
 });
