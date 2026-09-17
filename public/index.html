@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Battle Royale Mobile and PC</title>
+    <title>Battle Royale Mobile - Free Fire Style</title>
     <style>
         body {
             margin: 0; padding: 0; background: #0b0f19; color: #fff;
@@ -51,33 +51,45 @@
         .hud-top {
             position: absolute; top: 10px; left: 10px; right: 10px;
             display: flex; justify-content: space-between; align-items: center; pointer-events: none;
+            z-index: 10;
         }
         .stat-badge { background: rgba(0,0,0,0.7); padding: 6px 12px; border-radius: 6px; font-size: 13px; border: 1px solid rgba(255,255,255,0.1); }
         .hp-bar-container { width: 100px; height: 10px; background: #374151; border-radius: 5px; overflow: hidden; margin-top: 3px; }
         .hp-bar-fill { width: 100%; height: 100%; background: #10b981; transition: width 0.2s; }
 
         .chat-container {
-            position: absolute; bottom: 70px; left: 10px; width: 200px; height: 110px;
+            position: absolute; bottom: 100px; left: 10px; width: 180px; height: 90px;
             background: rgba(0,0,0,0.6); border-radius: 8px; display: flex; flex-direction: column;
-            padding: 5px; border: 1px solid rgba(255,255,255,0.1); font-size: 11px;
+            padding: 5px; border: 1px solid rgba(255,255,255,0.1); font-size: 10px; z-index: 10;
         }
-        .chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; margin-bottom: 5px; }
+        .chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
         .chat-msg { word-break: break-word; line-height: 1.2; }
         .chat-input-row { display: flex; gap: 4px; }
-        .chat-input-row input { margin: 0; padding: 4px; font-size: 11px; text-align: left; }
-        .chat-input-row button { padding: 4px 8px; margin: 0; font-size: 11px; width: auto; background: #3b82f6; color: #fff; border-radius: 4px; border:none;}
+        .chat-input-row input { margin: 0; padding: 3px; font-size: 10px; text-align: left; }
+        .chat-input-row button { padding: 3px 6px; margin: 0; font-size: 10px; width: auto; background: #3b82f6; color: #fff; border-radius: 4px; border:none;}
+
+        /* JOYSTICK VIRTUAL MOBILE */
+        #joystick-base {
+            position: absolute; bottom: 20px; left: 20px; width: 110px; height: 110px;
+            background: rgba(255, 255, 255, 0.1); border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%; pointer-events: auto; z-index: 10; display: none;
+        }
+        #joystick-stick {
+            position: absolute; top: 30px; left: 30px; width: 50px; height: 50px;
+            background: rgba(255, 255, 255, 0.5); border-radius: 50%; pointer-events: none;
+        }
 
         .controls-hud {
-            position: absolute; bottom: 15px; right: 15px; display: flex; gap: 10px; pointer-events: auto;
+            position: absolute; bottom: 20px; right: 20px; display: flex; gap: 12px; pointer-events: auto; z-index: 10;
         }
         .action-btn {
-            width: 65px; height: 65px; border-radius: 50%; background: rgba(239, 68, 68, 0.8);
+            width: 65px; height: 65px; border-radius: 50%; background: rgba(239, 68, 68, 0.85);
             border: 3px solid #f87171; color: #fff; font-weight: bold; font-size: 12px;
             display: flex; justify-content: center; align-items: center; cursor: pointer;
             box-shadow: 0 4px 10px rgba(0,0,0,0.5); user-select: none;
         }
         .action-btn:active { transform: scale(0.9); background: #dc2626; }
-        .reload-btn { background: rgba(59, 130, 246, 0.8); border-color: #60a5fa; }
+        .reload-btn { background: rgba(59, 130, 246, 0.85); border-color: #60a5fa; }
     </style>
     <script src="/socket.io/socket.io.js"></script>
 </head>
@@ -86,7 +98,7 @@
 <div class="container">
     <div id="lobby-screen" class="screen active">
         <h1>Free Fire 2D</h1>
-        <div class="subtitle">Com Danos Flutuantes</div>
+        <div class="subtitle">Modo Mobile + Alta Velocidade</div>
 
         <div class="lobby-box">
             <label>NOME DO SOBREVIVENTE:</label>
@@ -135,9 +147,14 @@
             </div>
         </div>
 
+        <!-- Joystick Touch na tela -->
+        <div id="joystick-base">
+            <div id="joystick-stick"></div>
+        </div>
+
         <div class="controls-hud">
             <div class="action-btn reload-btn" onclick="socket.emit('reload')">REC</div>
-            <div class="action-btn" id="shoot-btn">ATIrar</div>
+            <div class="action-btn" id="shoot-btn">ATIRAR</div>
         </div>
     </div>
 </div>
@@ -150,8 +167,11 @@
     let inGame = false;
     let myData = { name: '', skin: 'player_blue', weapon: 'glock' };
     let gameState = { players: {}, bullets: [] };
-    let floatingTexts = []; // Array para gerenciar os danos flutuantes
-    let touchAngle = 0;
+    let floatingTexts = [];
+    
+    let moveAngle = 0;
+    let isMoving = false;
+    let aimAngle = 0;
 
     function updatePreview() {
         const skin = document.getElementById("skin-select").value;
@@ -168,6 +188,7 @@
 
         document.getElementById("lobby-screen").classList.remove("active");
         document.getElementById("game-screen").classList.add("active");
+        document.getElementById("joystick-base").style.display = "block";
 
         canvas.width = canvas.parentElement.clientWidth;
         canvas.height = canvas.parentElement.clientHeight;
@@ -177,6 +198,54 @@
         requestAnimationFrame(gameLoop);
     }
 
+    // Configuração do Joystick Virtual para Toque em Celular
+    const joystickBase = document.getElementById("joystick-base");
+    const joystickStick = document.getElementById("joystick-stick");
+    let joystickTouchId = null;
+    let baseCoords = {};
+
+    joystickBase.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        let touch = e.changedTouches[0];
+        joystickTouchId = touch.identifier;
+        let rect = joystickBase.getBoundingClientRect();
+        baseCoords = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    });
+
+    window.addEventListener("touchmove", (e) => {
+        if (joystickTouchId === null) return;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            let touch = e.changedTouches[i];
+            if (touch.identifier === joystickTouchId) {
+                let dx = touch.clientX - baseCoords.x;
+                let dy = touch.clientY - baseCoords.y;
+                let dist = Math.hypot(dx, dy);
+                let maxDist = 40;
+
+                if (dist > maxDist) {
+                    dx = (dx / dist) * maxDist;
+                    dy = (dy / dist) * maxDist;
+                }
+
+                joystickStick.style.transform = `translate(${dx}px, ${dy}px)`;
+                moveAngle = Math.atan2(dy, dx);
+                aimAngle = moveAngle; // A arma aponta para onde corre
+                isMoving = true;
+            }
+        }
+    });
+
+    window.addEventListener("touchend", (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === joystickTouchId) {
+                joystickTouchId = null;
+                joystickStick.style.transform = `translate(0px, 0px)`;
+                isMoving = false;
+            }
+        }
+    });
+
+    // Suporte também para Mouse no PC
     canvas.addEventListener("mousemove", (e) => {
         const rect = canvas.getBoundingClientRect();
         let mouseX = e.clientX - rect.left;
@@ -186,7 +255,7 @@
         if (me) {
             let cameraX = me.x - canvas.width / 2;
             let cameraY = me.y - canvas.height / 2;
-            touchAngle = Math.atan2((mouseY + cameraY) - me.y, (mouseX + cameraX) - me.x);
+            aimAngle = Math.atan2((mouseY + cameraY) - me.y, (mouseX + cameraX) - me.x);
         }
     });
 
@@ -205,14 +274,13 @@
         }
     });
 
-    // Evento de dano recebido para criar o número flutuante
     socket.on('spawnDamage', (data) => {
         floatingTexts.push({
             x: data.x + (Math.random() * 20 - 10),
             y: data.y - 15,
             damage: data.damage,
             alpha: 1.0,
-            color: data.damage > 25 ? '#ef4444' : '#facc15' // Vermelho para dano alto, Amarelo para normal
+            color: data.damage > 25 ? '#ef4444' : '#facc15'
         });
     });
 
@@ -233,14 +301,15 @@
         }
     }
 
+    // Loop de movimento com alta velocidade aumentada (5.5 pixels por frame)
     setInterval(() => {
         if (!inGame) return;
         let me = gameState.players[socket.id];
-        if (me && me.alive) {
-            let speed = 2.5;
-            let newX = me.x + Math.cos(touchAngle) * speed;
-            let newY = me.y + Math.sin(touchAngle) * speed;
-            socket.emit('playerMove', { x: newX, y: newY, angle: touchAngle });
+        if (me && me.alive && isMoving) {
+            let speed = 5.5; 
+            let newX = me.x + Math.cos(moveAngle) * speed;
+            let newY = me.y + Math.sin(moveAngle) * speed;
+            socket.emit('playerMove', { x: newX, y: newY, angle: aimAngle });
         }
     }, 1000 / 60);
 
@@ -253,11 +322,9 @@
         let cameraX = me ? me.x - canvas.width / 2 : 0;
         let cameraY = me ? me.y - canvas.height / 2 : 0;
 
-        // Grama
         ctx.fillStyle = "#166534";
         ctx.fillRect(-cameraX, -cameraY, 1600, 1600);
 
-        // Grade do mapa
         ctx.strokeStyle = "#15803d";
         ctx.lineWidth = 2;
         for(let i=0; i<=1600; i+=200) {
@@ -265,7 +332,6 @@
             ctx.beginPath(); ctx.moveTo(0 - cameraX, i - cameraY); ctx.lineTo(1600 - cameraX, i - cameraY); ctx.stroke();
         }
 
-        // Balas
         ctx.fillStyle = "#facc15";
         gameState.bullets.forEach(b => {
             ctx.beginPath();
@@ -273,7 +339,6 @@
             ctx.fill();
         });
 
-        // Jogadores
         for (let id in gameState.players) {
             let p = gameState.players[id];
             if (!p.alive) continue;
@@ -301,11 +366,10 @@
             ctx.fillText(p.name, p.x - cameraX, p.y - cameraY - 24);
         }
 
-        // Renderizar e animar os Danos Flutuantes
         for (let i = floatingTexts.length - 1; i >= 0; i--) {
             let ft = floatingTexts[i];
-            ft.y -= 0.8; // Sobe devagar
-            ft.alpha -= 0.02; // Vai sumindo
+            ft.y -= 0.8;
+            ft.alpha -= 0.02;
 
             if (ft.alpha <= 0) {
                 floatingTexts.splice(i, 1);
