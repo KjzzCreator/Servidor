@@ -1,1 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Slither Multiplayer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #111;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: none;
+        }
+        .container {
+            text-align: center;
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.8);
+            width: 100%;
+            max-width: 400px;
+            box-sizing: border-box;
+        }
+        h1 { margin-top: 0; color: #00ffcc; font-size: 22px; }
+        .screen { display: none; }
+        .screen.active { display: block; }
+        input[type="text"], select {
+            width: 90%; padding: 10px; margin: 10px 0;
+            background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 6px; font-size: 16px; text-align: center;
+        }
+        button {
+            background: #00ffcc; color: #111; border: none; padding: 12px 20px;
+            margin-top: 15px; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%;
+        }
+        canvas { background: #0b0b0b; border: 2px solid #333; border-radius: 6px; display: block; margin: 0 auto; }
+        .scoreboard { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: bold; font-size: 14px; color: #aaa; }
+        .error-msg { color: #ff5252; font-size: 12px; margin-bottom: 5px; display: none; }
+    </style>
+    <!-- Importa o Socket.io do cliente -->
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
 
+<div class="container">
+    <div id="menu-screen" class="screen active">
+        <h1>Slither Multiplayer</h1>
+        <p>Digite seu apelido:</p>
+        <input type="text" id="player-name" placeholder="Ex: Wormy" maxlength="20">
+        <div id="error" class="error-msg">O nome não pode estar vazio!</div>
+
+        <p>Escolha a Skin:</p>
+        <select id="skin-select">
+            <option value="neon">Neon Cyber</option>
+            <option value="fire">Chamas</option>
+            <option value="toxic">Tóxico</option>
+            <option value="rainbow">Arco-Íris Misto</option>
+        </select>
+        <button onclick="connectAndPlay()">ENTRAR NA ARENA</button>
+    </div>
+
+    <div id="game-screen" class="screen">
+        <div class="scoreboard">
+            <span id="display-name">Jogador</span>
+            <span>Tamanho: <strong id="score">10</strong></span>
+        </div>
+        <canvas id="gameCanvas" width="350" height="350"></canvas>
+        <button onclick="location.reload()" style="background: #ff5252; color:#fff; margin-top: 8px; padding: 10px;">SAIR</button>
+    </div>
+</div>
+
+<script>
+    const socket = io();
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let gameRunning = false;
+    let playerName = "";
+    let playerSkin = "neon";
+    let serverState = { players: {}, foods: [] };
+    let mouse = { x: 0, y: 0 };
+
+    function connectAndPlay() {
+        const nameInput = document.getElementById("player-name").value.trim();
+        const errorDiv = document.getElementById("error");
+
+        if (nameInput === "") {
+            errorDiv.style.display = "block";
+            return;
+        }
+
+        playerName = nameInput.length > 20 ? nameInput.substring(0, 20) : nameInput;
+        playerSkin = document.getElementById("skin-select").value;
+
+        document.getElementById("display-name").innerText = playerName;
+        document.getElementById("menu-screen").classList.remove("active");
+        document.getElementById("game-screen").classList.add("active");
+
+        socket.emit('joinGame', { name: playerName, skin: playerSkin });
+        gameRunning = true;
+        requestAnimationFrame(gameLoop);
+    }
+
+    // Controles Mouse e Mobile
+    canvas.addEventListener("mousemove", (e) => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = e.clientX - rect.left;
+        mouse.y = e.clientY - rect.top;
+    });
+
+    canvas.addEventListener("touchmove", (e) => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        let touch = e.touches[0];
+        mouse.x = touch.clientX - rect.left;
+        mouse.y = touch.clientY - rect.top;
+    }, { passive: false });
+
+    socket.on('gameState', (state) => {
+        serverState = state;
+        let me = serverState.players[socket.id];
+        if (me) {
+            document.getElementById("score").innerText = me.score;
+        }
+    });
+
+    function gameLoop() {
+        if (!gameRunning) return;
+
+        let me = serverState.players[socket.id];
+        if (me && me.snake.length > 0) {
+            let head = me.snake[0];
+            let cameraX = head.x - canvas.width / 2;
+            let cameraY = head.y - canvas.height / 2;
+
+            // Envia o alvo global convertido para o servidor
+            socket.emit('updateMovement', {
+                x: mouse.x + cameraX,
+                y: mouse.y + cameraY
+            });
+
+            // DESENHO
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Comidas
+            serverState.foods.forEach(f => {
+                ctx.fillStyle = f.color;
+                ctx.beginPath();
+                ctx.arc(f.x - cameraX, f.y - cameraY, 4, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Desenhar todos os jogadores conectados
+            for (let id in serverState.players) {
+                let p = serverState.players[id];
+                p.snake.forEach((part, index) => {
+                    if (p.skin === 'rainbow') {
+                        ctx.fillStyle = `hsl(${(index * 10) % 360}, 100%, 50%)`;
+                    } else if (p.skin === 'fire') {
+                        ctx.fillStyle = index % 2 === 0 ? '#ff4500' : '#ff8c00';
+                    } else if (p.skin === 'toxic') {
+                        ctx.fillStyle = index % 2 === 0 ? '#00ff00' : '#32cd32';
+                    } else {
+                        ctx.fillStyle = index === 0 ? '#00ffff' : '#008b8b';
+                    }
+
+                    ctx.beginPath();
+                    ctx.arc(part.x - cameraX, part.y - cameraY, index === 0 ? 10 : 8, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+        }
+
+        requestAnimationFrame(gameLoop);
+    }
+</script>
+</body>
+</html>
