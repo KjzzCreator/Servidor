@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Battle Royale Mobile - Free Fire Style</title>
+    <title>Battle Royale - Free Fire Style</title>
     <style>
         body {
             margin: 0; padding: 0; background: #0b0f19; color: #fff;
@@ -121,8 +121,8 @@
 
             <label>MODO DE CONTROLE:</label>
             <select id="control-mode">
-                <option value="mobile">Mobile (Joystick Virtual)</option>
-                <option value="pc">PC (Mouse e Movimento Automático)</option>
+                <option value="mobile">Mobile (Joystick na Tela)</option>
+                <option value="pc">PC (Teclado WASD + Mouse)</option>
             </select>
 
             <div class="char-preview" id="preview-box">
@@ -153,12 +153,12 @@
             </div>
         </div>
 
-        <!-- Joystick Touch na tela (Aparece apenas se mobile for escolhido) -->
+        <!-- Joystick Touch (Aparece apenas se mobile for escolhido) -->
         <div id="joystick-base">
             <div id="joystick-stick"></div>
         </div>
 
-        <div class="controls-hud">
+        <div class="controls-hud" id="mobile-buttons">
             <div class="action-btn reload-btn" onclick="socket.emit('reload')">REC</div>
             <div class="action-btn" id="shoot-btn">ATIRAR</div>
         </div>
@@ -179,6 +179,9 @@
     let isMoving = false;
     let aimAngle = 0;
 
+    // Teclas pressionadas para o modo PC (WASD)
+    let keys = { w: false, a: false, s: false, d: false };
+
     function updatePreview() {
         const skin = document.getElementById("skin-select").value;
         const box = document.getElementById("preview-box");
@@ -198,9 +201,10 @@
 
         if (myData.mode === 'mobile') {
             document.getElementById("joystick-base").style.display = "block";
+            document.getElementById("mobile-buttons").style.display = "flex";
         } else {
             document.getElementById("joystick-base").style.display = "none";
-            isMoving = true; // No modo PC ele anda continuamente na direção da mira do mouse
+            document.getElementById("mobile-buttons").style.display = "none"; // No PC usa o mouse para atirar
         }
 
         canvas.width = canvas.parentElement.clientWidth;
@@ -258,7 +262,25 @@
         }
     });
 
-    // Configuração Mouse PC
+    // Controles de Teclado para o Modo PC (WASD + R para recarregar)
+    window.addEventListener("keydown", (e) => {
+        if (myData.mode !== 'pc') return;
+        if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.w = true;
+        if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.s = true;
+        if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.a = true;
+        if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.d = true;
+        if (e.key === 'r' || e.key === 'R') socket.emit('reload');
+    });
+
+    window.addEventListener("keyup", (e) => {
+        if (myData.mode !== 'pc') return;
+        if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.w = false;
+        if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.s = false;
+        if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.a = false;
+        if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.d = false;
+    });
+
+    // Configuração Mouse PC (Mira e Tiro)
     canvas.addEventListener("mousemove", (e) => {
         if (myData.mode !== 'pc') return;
         const rect = canvas.getBoundingClientRect();
@@ -270,13 +292,18 @@
             let cameraX = me.x - canvas.width / 2;
             let cameraY = me.y - canvas.height / 2;
             aimAngle = Math.atan2((mouseY + cameraY) - me.y, (mouseX + cameraX) - me.x);
-            moveAngle = aimAngle;
         }
     });
 
+    canvas.addEventListener("mousedown", (e) => {
+        if (myData.mode === 'pc') {
+            socket.emit('shoot');
+        }
+    });
+
+    // Botões touch do mobile
     document.getElementById("shoot-btn").addEventListener("touchstart", (e) => { e.preventDefault(); socket.emit('shoot'); });
-    document.getElementById("shoot-btn").addEventListener("mousedown", () => { socket.emit('shoot'); });
-    canvas.addEventListener("click", () => { socket.emit('shoot'); });
+    document.getElementById("shoot-btn").addEventListener("mousedown", () => { if(myData.mode === 'mobile') socket.emit('shoot'); });
 
     socket.on('gameState', (state) => {
         gameState = state;
@@ -316,12 +343,29 @@
         }
     }
 
-    // Loop de movimento unificado para ambos os modos
+    // Loop de movimento unificado
     setInterval(() => {
         if (!inGame) return;
         let me = gameState.players[socket.id];
-        if (me && me.alive && isMoving) {
-            let speed = 5.5; 
+        if (!me || !me.alive) return;
+
+        let speed = 5.5;
+
+        if (myData.mode === 'pc') {
+            let dx = 0;
+            let dy = 0;
+            if (keys.w) dy -= 1;
+            if (keys.s) dy += 1;
+            if (keys.a) dx -= 1;
+            if (keys.d) dx += 1;
+
+            if (dx !== 0 || dy !== 0) {
+                let angleDir = Math.atan2(dy, dx);
+                let newX = me.x + Math.cos(angleDir) * speed;
+                let newY = me.y + Math.sin(angleDir) * speed;
+                socket.emit('playerMove', { x: newX, y: newY, angle: aimAngle });
+            }
+        } else if (myData.mode === 'mobile' && isMoving) {
             let newX = me.x + Math.cos(moveAngle) * speed;
             let newY = me.y + Math.sin(moveAngle) * speed;
             socket.emit('playerMove', { x: newX, y: newY, angle: aimAngle });
