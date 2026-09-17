@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Slither Multiplayer</title>
+    <title>Slither Multiplayer Arena</title>
     <style>
         body {
             margin: 0;
@@ -27,6 +27,7 @@
             width: 100%;
             max-width: 400px;
             box-sizing: border-box;
+            position: relative;
         }
         h1 { margin-top: 0; color: #00ffcc; font-size: 22px; }
         .screen { display: none; }
@@ -40,17 +41,38 @@
             margin-top: 15px; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%;
         }
         canvas { background: #0b0b0b; border: 2px solid #333; border-radius: 6px; display: block; margin: 0 auto; }
-        .scoreboard { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: bold; font-size: 14px; color: #aaa; }
+        .scoreboard-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 14px;
+            color: #aaa;
+        }
+        .leaderboard {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 8px 12px;
+            border-radius: 6px;
+            text-align: left;
+            font-size: 11px;
+            width: 130px;
+            pointer-events: none;
+            border: 1px solid #333;
+        }
+        .leaderboard h4 { margin: 0 0 4px 0; color: #00ffcc; font-size: 12px; text-align: center; }
+        .leaderboard ol { margin: 0; padding-left: 15px; color: #fff; }
         .error-msg { color: #ff5252; font-size: 12px; margin-bottom: 5px; display: none; }
     </style>
-    <!-- Importa o Socket.io do cliente -->
     <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
 
 <div class="container">
     <div id="menu-screen" class="screen active">
-        <h1>Slither Multiplayer</h1>
+        <h1>Slither Arena</h1>
         <p>Digite seu apelido:</p>
         <input type="text" id="player-name" placeholder="Ex: Wormy" maxlength="20">
         <div id="error" class="error-msg">O nome não pode estar vazio!</div>
@@ -65,13 +87,21 @@
         <button onclick="connectAndPlay()">ENTRAR NA ARENA</button>
     </div>
 
-    <div id="game-screen" class="screen">
-        <div class="scoreboard">
+    <div id="game-screen" class="screen" style="position: relative;">
+        <div class="scoreboard-container">
             <span id="display-name">Jogador</span>
             <span>Tamanho: <strong id="score">10</strong></span>
         </div>
+        
+        <div class="leaderboard">
+            <h4>🏆 Placar</h4>
+            <ol id="rank-list">
+                <li>Aguardando...</li>
+            </ol>
+        </div>
+
         <canvas id="gameCanvas" width="350" height="350"></canvas>
-        <button onclick="location.reload()" style="background: #ff5252; color:#fff; margin-top: 8px; padding: 10px;">SAIR</button>
+        <button onclick="location.reload()" style="background: #ff5252; color:#fff; margin-top: 8px; padding: 8px;">SAIR</button>
     </div>
 </div>
 
@@ -107,7 +137,6 @@
         requestAnimationFrame(gameLoop);
     }
 
-    // Controles Mouse e Mobile
     canvas.addEventListener("mousemove", (e) => {
         const rect = canvas.getBoundingClientRect();
         mouse.x = e.clientX - rect.left;
@@ -128,27 +157,41 @@
         if (me) {
             document.getElementById("score").innerText = me.score;
         }
+        updateLeaderboard();
     });
+
+    socket.on('die', () => {
+        alert("Você bateu em outro jogador e foi eliminado! Renascendo em breve...");
+    });
+
+    function updateLeaderboard() {
+        let playersArr = Object.values(serverState.players).filter(p => p.alive);
+        playersArr.sort((a, b) => b.score - a.score);
+
+        let rankHtml = "";
+        playersArr.slice(0, 5).forEach(p => {
+            let isMe = p.id === socket.id ? "style='color:#00ffcc;'" : "";
+            rankHtml += `<li ${isMe}>${p.name} (${p.score})</li>`;
+        });
+        document.getElementById("rank-list").innerHTML = rankHtml || "<li>Vazio</li>";
+    }
 
     function gameLoop() {
         if (!gameRunning) return;
 
         let me = serverState.players[socket.id];
-        if (me && me.snake.length > 0) {
+        if (me && me.alive && me.snake.length > 0) {
             let head = me.snake[0];
             let cameraX = head.x - canvas.width / 2;
             let cameraY = head.y - canvas.height / 2;
 
-            // Envia o alvo global convertido para o servidor
             socket.emit('updateMovement', {
                 x: mouse.x + cameraX,
                 y: mouse.y + cameraY
             });
 
-            // DESENHO
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Comidas
             serverState.foods.forEach(f => {
                 ctx.fillStyle = f.color;
                 ctx.beginPath();
@@ -156,9 +199,10 @@
                 ctx.fill();
             });
 
-            // Desenhar todos os jogadores conectados
             for (let id in serverState.players) {
                 let p = serverState.players[id];
+                if (!p.alive) continue;
+
                 p.snake.forEach((part, index) => {
                     if (p.skin === 'rainbow') {
                         ctx.fillStyle = `hsl(${(index * 10) % 360}, 100%, 50%)`;
