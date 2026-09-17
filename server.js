@@ -13,7 +13,6 @@ let bullets = [];
 
 const mapSize = 1600;
 
-// Configuração das 4 armas solicitadas
 const weaponsConfig = {
     glock: { name: 'Glock 17', damage: 18, speed: 12, fireRate: 350, ammoMax: 15, range: 400 },
     mp5:   { name: 'MP5',      damage: 14, speed: 14, fireRate: 150, ammoMax: 30, range: 500 },
@@ -42,7 +41,6 @@ io.on('connection', (socket) => {
             lastShot: 0
         };
 
-        // Avisa no chat global que entrou
         io.emit('chatMessage', { sender: 'Sistema', text: `${players[socket.id].name} caiu de paraquedas na ilha!` });
     });
 
@@ -68,7 +66,6 @@ io.on('connection', (socket) => {
         p.ammo--;
         p.lastShot = now;
 
-        // Cria o projétil disparado
         bullets.push({
             id: Math.random().toString(),
             ownerId: socket.id,
@@ -103,33 +100,31 @@ io.on('connection', (socket) => {
     });
 });
 
-// Loop principal do jogo no servidor (60 FPS)
 setInterval(() => {
-    // Atualiza balas
     for (let i = bullets.length - 1; i >= 0; i--) {
         let b = bullets[i];
         b.x += b.vx;
         b.y += b.vy;
         b.travelled += Math.hypot(b.vx, b.vy);
 
-        // Remove se passar do alcance máximo ou sair do mapa
         if (b.travelled >= b.range || b.x < 0 || b.x > mapSize || b.y < 0 || b.y > mapSize) {
             bullets.splice(i, 1);
             continue;
         }
 
-        // Colisão com jogadores
         let hit = false;
         for (let id in players) {
             let p = players[id];
             if (!p.alive || id === b.ownerId) continue;
 
             let dist = Math.hypot(p.x - b.x, p.y - b.y);
-            if (dist < 18) { // Acertou o player
+            if (dist < 18) {
                 p.hp -= b.damage;
                 hit = true;
 
-                // Verifica se morreu
+                // Envia evento de Dano Flutuante para todos na sala
+                io.emit('spawnDamage', { x: p.x, y: p.y, damage: b.damage });
+
                 if (p.hp <= 0) {
                     p.alive = false;
                     p.hp = 0;
@@ -140,7 +135,6 @@ setInterval(() => {
                         io.emit('chatMessage', { sender: '💀', text: `${killer.name} eliminou ${p.name}!` });
                     }
 
-                    // Respawn automático após 3 segundos
                     setTimeout(() => {
                         if (players[id]) {
                             players[id].hp = 100;
