@@ -37,9 +37,10 @@ io.on('connection', (socket) => {
             skin: data.skin,
             snake: [
                 { x: startX, y: startY },
-                { x: startX, y: startY + 10 },
-                { x: startX, y: startY + 20 },
-                { x: startX, y: startY + 30 }
+                { x: startX, y: startY + 12 },
+                { x: startX, y: startY + 24 },
+                { x: startX, y: startY + 36 },
+                { x: startX, y: startY + 48 }
             ],
             score: 15,
             alive: true
@@ -52,7 +53,7 @@ io.on('connection', (socket) => {
 
         let head = player.snake[0];
         let angle = Math.atan2(target.y - head.y, target.x - head.x);
-        let speed = 1.8;
+        let speed = 2.0; // Velocidade um pouco mais fluida
 
         let newX = head.x + Math.cos(angle) * speed;
         let newY = head.y + Math.sin(angle) * speed;
@@ -71,7 +72,7 @@ io.on('connection', (socket) => {
         for (let i = foods.length - 1; i >= 0; i--) {
             let f = foods[i];
             let dist = Math.hypot(newHead.x - f.x, newHead.y - f.y);
-            if (dist < 15) { // Raio de coleta ajustado
+            if (dist < 16) {
                 foods.splice(i, 1);
                 foods.push({
                     id: Math.random().toString(),
@@ -92,20 +93,19 @@ io.on('connection', (socket) => {
         player.score = player.snake.length;
 
         // ==========================================
-        // COLISÃO COM OUTROS JOGADORES (Agora rigorosa)
+        // COLISÃO ROBUSTA COM OUTROS JOGADORES
         // ==========================================
         for (let id in players) {
             let p = players[id];
-            // Se o outro jogador estiver morto ou for você mesmo, pula
             if (!p.alive || id === socket.id) continue;
 
-            // Começa do índice 2 para evitar falsos positivos na cabeça inicial
-            for (let j = 2; j < p.snake.length; j++) {
+            // Verifica colisão da cabeça com qualquer parte do corpo do oponente
+            for (let j = 0; j < p.snake.length; j++) {
                 let part = p.snake[j];
                 let dist = Math.hypot(newHead.x - part.x, newHead.y - part.y);
                 
-                // Se a distância entre a sua cabeça e o corpo do oponente for menor que 12 pixels
-                if (dist < 12) {
+                // Distância de 14 pixels garante o toque certeiro na cobra inimiga
+                if (dist < 14) {
                     killPlayer(socket.id);
                     return;
                 }
@@ -127,15 +127,14 @@ function killPlayer(id) {
     turnSnakeIntoFood(players[id]);
     io.to(id).emit('die');
     
-    // Reseta e renasce o jogador após 2 segundos em um lugar seguro aleatório
     setTimeout(() => {
         if (players[id]) {
             let startX = Math.random() * (worldWidth - 400) + 200;
             let startY = Math.random() * (worldHeight - 400) + 200;
             players[id].snake = [
                 { x: startX, y: startY },
-                { x: startX, y: startY + 10 },
-                { x: startX, y: startY + 20 }
+                { x: startX, y: startY + 12 },
+                { x: startX, y: startY + 24 }
             ];
             players[id].score = 15;
             players[id].alive = true;
