@@ -17,30 +17,30 @@
             display: flex; flex-direction: column; position: relative; overflow: hidden;
             border: 2px solid #1f2937;
         }
-        .screen { display: none; flex: 1; flex-direction: column; padding: 20px; box-sizing: border-box; justify-content: center; align-items: center; }
+        .screen { display: none; flex: 1; flex-direction: column; padding: 15px; box-sizing: border-box; justify-content: center; align-items: center; overflow-y: auto; }
         .screen.active { display: flex; }
         
-        h1 { color: #f59e0b; font-size: 26px; text-transform: uppercase; margin-bottom: 5px; text-shadow: 0 2px 10px rgba(245,158,11,0.4); }
-        .subtitle { color: #9ca3af; font-size: 13px; margin-bottom: 20px; }
+        h1 { color: #f59e0b; font-size: 24px; text-transform: uppercase; margin-bottom: 2px; text-shadow: 0 2px 10px rgba(245,158,11,0.4); }
+        .subtitle { color: #9ca3af; font-size: 12px; margin-bottom: 12px; }
         
-        .lobby-box { background: #1f2937; padding: 15px; border-radius: 10px; width: 100%; box-sizing: border-box; margin-bottom: 15px; border: 1px solid #374151; }
-        .lobby-box label { font-size: 12px; color: #d1d5db; display: block; text-align: left; margin-bottom: 5px; font-weight: bold; }
+        .lobby-box { background: #1f2937; padding: 12px; border-radius: 10px; width: 100%; box-sizing: border-box; margin-bottom: 12px; border: 1px solid #374151; }
+        .lobby-box label { font-size: 11px; color: #d1d5db; display: block; text-align: left; margin-bottom: 3px; font-weight: bold; }
         
         input, select {
-            width: 100%; padding: 10px; background: #111827; border: 1px solid #4b5563;
-            color: #fff; border-radius: 6px; font-size: 15px; box-sizing: border-box; margin-bottom: 10px; text-align: center;
+            width: 100%; padding: 8px; background: #111827; border: 1px solid #4b5563;
+            color: #fff; border-radius: 6px; font-size: 14px; box-sizing: border-box; margin-bottom: 8px; text-align: center;
         }
         
         .char-preview {
-            width: 70px; height: 70px; border-radius: 50%; background: #3b82f6; margin: 10px auto;
+            width: 60px; height: 60px; border-radius: 50%; background: #3b82f6; margin: 5px auto;
             display: flex; justify-content: center; align-items: center; position: relative;
             box-shadow: 0 0 15px rgba(59,130,246,0.6); border: 3px solid #60a5fa;
         }
-        .char-gun { position: absolute; right: -5px; width: 25px; height: 8px; background: #9ca3af; border-radius: 2px; }
+        .char-gun { position: absolute; right: -5px; width: 22px; height: 7px; background: #9ca3af; border-radius: 2px; }
 
         .btn-play {
             background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; border: none;
-            padding: 14px; border-radius: 8px; font-size: 16px; font-weight: bold; width: 100%;
+            padding: 12px; border-radius: 8px; font-size: 15px; font-weight: bold; width: 100%;
             cursor: pointer; text-transform: uppercase; box-shadow: 0 4px 15px rgba(245,158,11,0.4);
         }
         .btn-play:active { transform: scale(0.98); }
@@ -98,7 +98,7 @@
 <div class="container">
     <div id="lobby-screen" class="screen active">
         <h1>Free Fire 2D</h1>
-        <div class="subtitle">Modo Mobile + Alta Velocidade</div>
+        <div class="subtitle">Escolha seu Modo de Jogo</div>
 
         <div class="lobby-box">
             <label>NOME DO SOBREVIVENTE:</label>
@@ -117,6 +117,12 @@
                 <option value="mp5">MP5 (Submetralhadora ágil)</option>
                 <option value="ak47">AK-47 (Alto Dano)</option>
                 <option value="xm8">XM8 (Fuzil tático moderno)</option>
+            </select>
+
+            <label>MODO DE CONTROLE:</label>
+            <select id="control-mode">
+                <option value="mobile">Mobile (Joystick Virtual)</option>
+                <option value="pc">PC (Mouse e Movimento Automático)</option>
             </select>
 
             <div class="char-preview" id="preview-box">
@@ -147,7 +153,7 @@
             </div>
         </div>
 
-        <!-- Joystick Touch na tela -->
+        <!-- Joystick Touch na tela (Aparece apenas se mobile for escolhido) -->
         <div id="joystick-base">
             <div id="joystick-stick"></div>
         </div>
@@ -165,7 +171,7 @@
     const ctx = canvas.getContext("2d");
 
     let inGame = false;
-    let myData = { name: '', skin: 'player_blue', weapon: 'glock' };
+    let myData = { name: '', skin: 'player_blue', weapon: 'glock', mode: 'mobile' };
     let gameState = { players: {}, bullets: [] };
     let floatingTexts = [];
     
@@ -185,10 +191,17 @@
         myData.name = document.getElementById("name-input").value.trim() || "Sobrevivente";
         myData.skin = document.getElementById("skin-select").value;
         myData.weapon = document.getElementById("weapon-select").value;
+        myData.mode = document.getElementById("control-mode").value;
 
         document.getElementById("lobby-screen").classList.remove("active");
         document.getElementById("game-screen").classList.add("active");
-        document.getElementById("joystick-base").style.display = "block";
+
+        if (myData.mode === 'mobile') {
+            document.getElementById("joystick-base").style.display = "block";
+        } else {
+            document.getElementById("joystick-base").style.display = "none";
+            isMoving = true; // No modo PC ele anda continuamente na direção da mira do mouse
+        }
 
         canvas.width = canvas.parentElement.clientWidth;
         canvas.height = canvas.parentElement.clientHeight;
@@ -198,7 +211,7 @@
         requestAnimationFrame(gameLoop);
     }
 
-    // Configuração do Joystick Virtual para Toque em Celular
+    // Configuração Joystick Mobile
     const joystickBase = document.getElementById("joystick-base");
     const joystickStick = document.getElementById("joystick-stick");
     let joystickTouchId = null;
@@ -213,7 +226,7 @@
     });
 
     window.addEventListener("touchmove", (e) => {
-        if (joystickTouchId === null) return;
+        if (myData.mode !== 'mobile' || joystickTouchId === null) return;
         for (let i = 0; i < e.changedTouches.length; i++) {
             let touch = e.changedTouches[i];
             if (touch.identifier === joystickTouchId) {
@@ -229,7 +242,7 @@
 
                 joystickStick.style.transform = `translate(${dx}px, ${dy}px)`;
                 moveAngle = Math.atan2(dy, dx);
-                aimAngle = moveAngle; // A arma aponta para onde corre
+                aimAngle = moveAngle;
                 isMoving = true;
             }
         }
@@ -240,13 +253,14 @@
             if (e.changedTouches[i].identifier === joystickTouchId) {
                 joystickTouchId = null;
                 joystickStick.style.transform = `translate(0px, 0px)`;
-                isMoving = false;
+                if (myData.mode === 'mobile') isMoving = false;
             }
         }
     });
 
-    // Suporte também para Mouse no PC
+    // Configuração Mouse PC
     canvas.addEventListener("mousemove", (e) => {
+        if (myData.mode !== 'pc') return;
         const rect = canvas.getBoundingClientRect();
         let mouseX = e.clientX - rect.left;
         let mouseY = e.clientY - rect.top;
@@ -256,6 +270,7 @@
             let cameraX = me.x - canvas.width / 2;
             let cameraY = me.y - canvas.height / 2;
             aimAngle = Math.atan2((mouseY + cameraY) - me.y, (mouseX + cameraX) - me.x);
+            moveAngle = aimAngle;
         }
     });
 
@@ -301,7 +316,7 @@
         }
     }
 
-    // Loop de movimento com alta velocidade aumentada (5.5 pixels por frame)
+    // Loop de movimento unificado para ambos os modos
     setInterval(() => {
         if (!inGame) return;
         let me = gameState.players[socket.id];
