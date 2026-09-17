@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Battle Royale Mobile - Free Fire Style</title>
+    <title>Battle Royale Mobile and PC</title>
     <style>
         body {
             margin: 0; padding: 0; background: #0b0f19; color: #fff;
@@ -20,7 +20,6 @@
         .screen { display: none; flex: 1; flex-direction: column; padding: 20px; box-sizing: border-box; justify-content: center; align-items: center; }
         .screen.active { display: flex; }
         
-        /* TELA DE LOBBY */
         h1 { color: #f59e0b; font-size: 26px; text-transform: uppercase; margin-bottom: 5px; text-shadow: 0 2px 10px rgba(245,158,11,0.4); }
         .subtitle { color: #9ca3af; font-size: 13px; margin-bottom: 20px; }
         
@@ -32,7 +31,6 @@
             color: #fff; border-radius: 6px; font-size: 15px; box-sizing: border-box; margin-bottom: 10px; text-align: center;
         }
         
-        /* Pré-visualização do Personagem no Lobby */
         .char-preview {
             width: 70px; height: 70px; border-radius: 50%; background: #3b82f6; margin: 10px auto;
             display: flex; justify-content: center; align-items: center; position: relative;
@@ -47,11 +45,9 @@
         }
         .btn-play:active { transform: scale(0.98); }
 
-        /* TELA DE JOGO */
         #game-screen { padding: 0; position: relative; }
-        canvas { display: background; background: #1a2e1a; width: 100%; height: 100%; }
+        canvas { display: block; background: #166534; width: 100%; height: 100%; }
 
-        /* HUD SUPERIOR */
         .hud-top {
             position: absolute; top: 10px; left: 10px; right: 10px;
             display: flex; justify-content: space-between; align-items: center; pointer-events: none;
@@ -60,7 +56,6 @@
         .hp-bar-container { width: 100px; height: 10px; background: #374151; border-radius: 5px; overflow: hidden; margin-top: 3px; }
         .hp-bar-fill { width: 100%; height: 100%; background: #10b981; transition: width 0.2s; }
 
-        /* PAINEL DE CHAT */
         .chat-container {
             position: absolute; bottom: 70px; left: 10px; width: 200px; height: 110px;
             background: rgba(0,0,0,0.6); border-radius: 8px; display: flex; flex-direction: column;
@@ -72,7 +67,6 @@
         .chat-input-row input { margin: 0; padding: 4px; font-size: 11px; text-align: left; }
         .chat-input-row button { padding: 4px 8px; margin: 0; font-size: 11px; width: auto; background: #3b82f6; color: #fff; border-radius: 4px; border:none;}
 
-        /* BOTÕES DE CONTROLE DO JOGO (TIRO E RECARGA) */
         .controls-hud {
             position: absolute; bottom: 15px; right: 15px; display: flex; gap: 10px; pointer-events: auto;
         }
@@ -90,10 +84,9 @@
 <body>
 
 <div class="container">
-    <!-- TELA 1: LOBBY -->
     <div id="lobby-screen" class="screen active">
         <h1>Free Fire 2D</h1>
-        <div class="subtitle">Edição Multiplayer em Tempo Real</div>
+        <div class="subtitle">Com Danos Flutuantes</div>
 
         <div class="lobby-box">
             <label>NOME DO SOBREVIVENTE:</label>
@@ -122,7 +115,6 @@
         <button class="btn-play" onclick="joinGame()">ENTRAR NA BATALHA</button>
     </div>
 
-    <!-- TELA 2: ARENA DE JOGO -->
     <div id="game-screen" class="screen">
         <canvas id="gameCanvas"></canvas>
 
@@ -135,7 +127,6 @@
             <div class="stat-badge">Abates: <strong id="kills-txt">0</strong></div>
         </div>
 
-        <!-- CHAT AO VIVO -->
         <div class="chat-container">
             <div class="chat-messages" id="chat-msgs"></div>
             <div class="chat-input-row">
@@ -144,7 +135,6 @@
             </div>
         </div>
 
-        <!-- BOTÕES DE AÇÃO NA TELA -->
         <div class="controls-hud">
             <div class="action-btn reload-btn" onclick="socket.emit('reload')">REC</div>
             <div class="action-btn" id="shoot-btn">ATIrar</div>
@@ -160,10 +150,8 @@
     let inGame = false;
     let myData = { name: '', skin: 'player_blue', weapon: 'glock' };
     let gameState = { players: {}, bullets: [] };
-    
-    // Joystick analógico / controle de mira por toque e mouse
+    let floatingTexts = []; // Array para gerenciar os danos flutuantes
     let touchAngle = 0;
-    let isShooting = false;
 
     function updatePreview() {
         const skin = document.getElementById("skin-select").value;
@@ -181,7 +169,6 @@
         document.getElementById("lobby-screen").classList.remove("active");
         document.getElementById("game-screen").classList.add("active");
 
-        // Ajusta tamanho real do canvas
         canvas.width = canvas.parentElement.clientWidth;
         canvas.height = canvas.parentElement.clientHeight;
 
@@ -189,9 +176,6 @@
         inGame = true;
         requestAnimationFrame(gameLoop);
     }
-
-    // Controles de Mira e Movimento (Seguir toque ou mouse)
-    let moveTarget = { x: 800, y: 800 };
 
     canvas.addEventListener("mousemove", (e) => {
         const rect = canvas.getBoundingClientRect();
@@ -206,13 +190,9 @@
         }
     });
 
-    // Disparar via botão ou clique
     document.getElementById("shoot-btn").addEventListener("touchstart", (e) => { e.preventDefault(); socket.emit('shoot'); });
     document.getElementById("shoot-btn").addEventListener("mousedown", () => { socket.emit('shoot'); });
-
-    canvas.addEventListener("click", () => {
-        socket.emit('shoot');
-    });
+    canvas.addEventListener("click", () => { socket.emit('shoot'); });
 
     socket.on('gameState', (state) => {
         gameState = state;
@@ -225,7 +205,17 @@
         }
     });
 
-    // Sistema de Chat
+    // Evento de dano recebido para criar o número flutuante
+    socket.on('spawnDamage', (data) => {
+        floatingTexts.push({
+            x: data.x + (Math.random() * 20 - 10),
+            y: data.y - 15,
+            damage: data.damage,
+            alpha: 1.0,
+            color: data.damage > 25 ? '#ef4444' : '#facc15' // Vermelho para dano alto, Amarelo para normal
+        });
+    });
+
     socket.on('chatMessage', (data) => {
         const chatBox = document.getElementById("chat-msgs");
         const div = document.createElement("div");
@@ -243,7 +233,6 @@
         }
     }
 
-    // Envio continuo de movimento leve para frente na direção da mira
     setInterval(() => {
         if (!inGame) return;
         let me = gameState.players[socket.id];
@@ -264,11 +253,11 @@
         let cameraX = me ? me.x - canvas.width / 2 : 0;
         let cameraY = me ? me.y - canvas.height / 2 : 0;
 
-        // Desenhar grama do mapa
+        // Grama
         ctx.fillStyle = "#166534";
         ctx.fillRect(-cameraX, -cameraY, 1600, 1600);
 
-        // Grade de referência do mapa
+        // Grade do mapa
         ctx.strokeStyle = "#15803d";
         ctx.lineWidth = 2;
         for(let i=0; i<=1600; i+=200) {
@@ -276,7 +265,7 @@
             ctx.beginPath(); ctx.moveTo(0 - cameraX, i - cameraY); ctx.lineTo(1600 - cameraX, i - cameraY); ctx.stroke();
         }
 
-        // Desenhar balas voando
+        // Balas
         ctx.fillStyle = "#facc15";
         gameState.bullets.forEach(b => {
             ctx.beginPath();
@@ -284,7 +273,7 @@
             ctx.fill();
         });
 
-        // Desenhar Jogadores
+        // Jogadores
         for (let id in gameState.players) {
             let p = gameState.players[id];
             if (!p.alive) continue;
@@ -293,7 +282,6 @@
             ctx.translate(p.x - cameraX, p.y - cameraY);
             ctx.rotate(p.angle);
 
-            // Corpo do boneco
             ctx.fillStyle = p.skin === 'player_red' ? '#ef4444' : (p.skin === 'player_yellow' ? '#eab308' : '#3b82f6');
             ctx.beginPath();
             ctx.arc(0, 0, 16, 0, Math.PI * 2);
@@ -302,17 +290,35 @@
             ctx.strokeStyle = "#111";
             ctx.stroke();
 
-            // Cano da Arma
             ctx.fillStyle = "#9ca3af";
             ctx.fillRect(8, -4, 14, 8);
 
             ctx.restore();
 
-            // Nome e Vida acima do player
             ctx.fillStyle = "#fff";
             ctx.font = "11px sans-serif";
             ctx.textAlign = "center";
             ctx.fillText(p.name, p.x - cameraX, p.y - cameraY - 24);
+        }
+
+        // Renderizar e animar os Danos Flutuantes
+        for (let i = floatingTexts.length - 1; i >= 0; i--) {
+            let ft = floatingTexts[i];
+            ft.y -= 0.8; // Sobe devagar
+            ft.alpha -= 0.02; // Vai sumindo
+
+            if (ft.alpha <= 0) {
+                floatingTexts.splice(i, 1);
+                continue;
+            }
+
+            ctx.save();
+            ctx.globalAlpha = ft.alpha;
+            ctx.fillStyle = ft.color;
+            ctx.font = "bold 16px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText("-" + ft.damage, ft.x - cameraX, ft.y - cameraY);
+            ctx.restore();
         }
 
         requestAnimationFrame(gameLoop);
