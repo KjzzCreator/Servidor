@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Battle Royale - Free Fire Style</title>
+    <title>Battle Royale - Gang Wars Style</title>
     <style>
         body {
             margin: 0; padding: 0; background: #0b0f19; color: #fff;
@@ -12,78 +12,80 @@
             height: 100vh; overflow: hidden; touch-action: none;
         }
         .container {
-            width: 100%; max-width: 420px; height: 100vh; max-height: 750px;
+            width: 100%; max-width: 420px; height: 100vh; max-height: 780px;
             background: #111827; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.9);
             display: flex; flex-direction: column; position: relative; overflow: hidden;
             border: 2px solid #1f2937;
         }
-        .screen { display: none; flex: 1; flex-direction: column; padding: 15px; box-sizing: border-box; justify-content: center; align-items: center; overflow-y: auto; }
+        .screen { display: none; flex: 1; flex-direction: column; padding: 12px; box-sizing: border-box; justify-content: center; align-items: center; overflow-y: auto; }
         .screen.active { display: flex; }
         
-        h1 { color: #f59e0b; font-size: 24px; text-transform: uppercase; margin-bottom: 2px; text-shadow: 0 2px 10px rgba(245,158,11,0.4); }
-        .subtitle { color: #9ca3af; font-size: 12px; margin-bottom: 12px; }
+        h1 { color: #f59e0b; font-size: 22px; text-transform: uppercase; margin-bottom: 2px; text-shadow: 0 2px 10px rgba(245,158,11,0.4); text-align: center; }
+        .subtitle { color: #9ca3af; font-size: 11px; margin-bottom: 8px; text-align: center; }
         
-        .lobby-box { background: #1f2937; padding: 12px; border-radius: 10px; width: 100%; box-sizing: border-box; margin-bottom: 12px; border: 1px solid #374151; }
-        .lobby-box label { font-size: 11px; color: #d1d5db; display: block; text-align: left; margin-bottom: 3px; font-weight: bold; }
+        .lobby-box { background: #1f2937; padding: 10px; border-radius: 10px; width: 100%; box-sizing: border-box; margin-bottom: 10px; border: 1px solid #374151; }
+        .lobby-box label { font-size: 10px; color: #d1d5db; display: block; text-align: left; margin-bottom: 2px; font-weight: bold; }
         
         input, select {
-            width: 100%; padding: 8px; background: #111827; border: 1px solid #4b5563;
-            color: #fff; border-radius: 6px; font-size: 14px; box-sizing: border-box; margin-bottom: 8px; text-align: center;
+            width: 100%; padding: 6px; background: #111827; border: 1px solid #4b5563;
+            color: #fff; border-radius: 6px; font-size: 13px; box-sizing: border-box; margin-bottom: 6px; text-align: center;
         }
-        
-        .char-preview {
-            width: 60px; height: 60px; border-radius: 50%; background: #3b82f6; margin: 5px auto;
-            display: flex; justify-content: center; align-items: center; position: relative;
-            box-shadow: 0 0 15px rgba(59,130,246,0.6); border: 3px solid #60a5fa;
-        }
-        .char-gun { position: absolute; right: -5px; width: 22px; height: 7px; background: #9ca3af; border-radius: 2px; }
 
         .btn-play {
             background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; border: none;
-            padding: 12px; border-radius: 8px; font-size: 15px; font-weight: bold; width: 100%;
+            padding: 10px; border-radius: 8px; font-size: 14px; font-weight: bold; width: 100%;
             cursor: pointer; text-transform: uppercase; box-shadow: 0 4px 15px rgba(245,158,11,0.4);
         }
         .btn-play:active { transform: scale(0.98); }
 
         #game-screen { padding: 0; position: relative; }
-        canvas { display: block; background: #166534; width: 100%; height: 100%; outline: none; }
+        canvas { display: block; background: #1e293b; width: 100%; height: 100%; outline: none; }
 
         .hud-top {
             position: absolute; top: 10px; left: 10px; right: 10px;
             display: flex; justify-content: space-between; align-items: center; pointer-events: none;
             z-index: 10;
         }
-        .stat-badge { background: rgba(0,0,0,0.7); padding: 6px 12px; border-radius: 6px; font-size: 13px; border: 1px solid rgba(255,255,255,0.1); }
-        .hp-bar-container { width: 100px; height: 10px; background: #374151; border-radius: 5px; overflow: hidden; margin-top: 3px; }
+        .stat-badge { background: rgba(0,0,0,0.75); padding: 5px 10px; border-radius: 6px; font-size: 12px; border: 1px solid rgba(255,255,255,0.15); }
+        .hp-bar-container { width: 90px; height: 8px; background: #374151; border-radius: 4px; overflow: hidden; margin-top: 2px; }
         .hp-bar-fill { width: 100%; height: 100%; background: #10b981; transition: width 0.2s; }
 
-        .chat-container {
-            position: absolute; bottom: 100px; left: 10px; width: 180px; height: 90px;
-            background: rgba(0,0,0,0.6); border-radius: 8px; display: flex; flex-direction: column;
-            padding: 5px; border: 1px solid rgba(255,255,255,0.1); font-size: 10px; z-index: 10;
+        /* MINI MAPA / RADAR */
+        .minimap-container {
+            position: absolute; top: 60px; right: 10px; width: 110px; height: 110px;
+            background: rgba(15, 23, 42, 0.85); border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px; overflow: hidden; z-index: 10; pointer-events: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
-        .chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
-        .chat-msg { word-break: break-word; line-height: 1.2; }
-        .chat-input-row { display: flex; gap: 4px; }
-        .chat-input-row input { margin: 0; padding: 3px; font-size: 10px; text-align: left; }
-        .chat-input-row button { padding: 3px 6px; margin: 0; font-size: 10px; width: auto; background: #3b82f6; color: #fff; border-radius: 4px; border:none;}
+        #minimapCanvas { width: 100%; height: 100%; display: block; }
+
+        .chat-container {
+            position: absolute; bottom: 90px; left: 10px; width: 170px; height: 80px;
+            background: rgba(0,0,0,0.65); border-radius: 8px; display: flex; flex-direction: column;
+            padding: 4px; border: 1px solid rgba(255,255,255,0.1); font-size: 9px; z-index: 10;
+        }
+        .chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; margin-bottom: 3px; }
+        .chat-msg { word-break: break-word; line-height: 1.1; }
+        .chat-input-row { display: flex; gap: 3px; }
+        .chat-input-row input { margin: 0; padding: 2px; font-size: 9px; text-align: left; }
+        .chat-input-row button { padding: 2px 5px; margin: 0; font-size: 9px; width: auto; background: #3b82f6; color: #fff; border-radius: 3px; border:none;}
 
         #joystick-base {
-            position: absolute; bottom: 20px; left: 20px; width: 110px; height: 110px;
+            position: absolute; bottom: 20px; left: 20px; width: 100px; height: 100px;
             background: rgba(255, 255, 255, 0.1); border: 2px solid rgba(255, 255, 255, 0.3);
             border-radius: 50%; pointer-events: auto; z-index: 10; display: none;
         }
         #joystick-stick {
-            position: absolute; top: 30px; left: 30px; width: 50px; height: 50px;
+            position: absolute; top: 25px; left: 25px; width: 50px; height: 50px;
             background: rgba(255, 255, 255, 0.5); border-radius: 50%; pointer-events: none;
         }
 
         .controls-hud {
-            position: absolute; bottom: 20px; right: 20px; display: flex; gap: 12px; pointer-events: auto; z-index: 10;
+            position: absolute; bottom: 20px; right: 20px; display: flex; gap: 10px; pointer-events: auto; z-index: 10;
         }
         .action-btn {
-            width: 65px; height: 65px; border-radius: 50%; background: rgba(239, 68, 68, 0.85);
-            border: 3px solid #f87171; color: #fff; font-weight: bold; font-size: 12px;
+            width: 60px; height: 60px; border-radius: 50%; background: rgba(239, 68, 68, 0.85);
+            border: 3px solid #f87171; color: #fff; font-weight: bold; font-size: 11px;
             display: flex; justify-content: center; align-items: center; cursor: pointer;
             box-shadow: 0 4px 10px rgba(0,0,0,0.5); user-select: none;
         }
@@ -96,26 +98,29 @@
 
 <div class="container">
     <div id="lobby-screen" class="screen active">
-        <h1>Free Fire 2D</h1>
-        <div class="subtitle">Escolha seu Modo de Jogo</div>
+        <h1>Gang Wars Arena</h1>
+        <div class="subtitle">Escolha sua Facção e seu Arsenal</div>
 
         <div class="lobby-box">
-            <label>NOME DO SOBREVIVENTE:</label>
-            <input type="text" id="name-input" value="Player" maxlength="15">
+            <label>NOME DO GUERREIRO:</label>
+            <input type="text" id="name-input" value="Bandidão" maxlength="15">
 
-            <label>ESCOLHA SUA SKIN:</label>
-            <select id="skin-select" onchange="updatePreview()">
-                <option value="player_blue">Elite Azul</option>
-                <option value="player_red">Comando Vermelho</option>
-                <option value="player_yellow">Mercenário Dourado</option>
+            <label>ESCOLHA SUA GANGUE:</label>
+            <select id="gang-select">
+                <option value="gang_command">🔴 Comando da Cidade</option>
+                <option value="gang_ravens">🔵 Os Corvos</option>
+                <option value="gang_ghosts">🟣 Os Fantasmas</option>
+                <option value="gang_cartel">🟡 Cartel Sombrio</option>
             </select>
 
-            <label>ARMA PRINCIPAL:</label>
+            <label>ARMA DE COMBATE:</label>
             <select id="weapon-select">
-                <option value="glock">Glock 17 (Leve e rápida)</option>
-                <option value="mp5">MP5 (Submetralhadora ágil)</option>
+                <option value="glock">Glock 17 (Rápida)</option>
+                <option value="mp5">MP5 (Submetralhadora Ágil)</option>
                 <option value="ak47">AK-47 (Alto Dano)</option>
-                <option value="xm8">XM8 (Fuzil tático moderno)</option>
+                <option value="xm8">XM8 (Fuzil Tático)</option>
+                <option value="shotgun">Shotgun (Destruidora Curta Distância)</option>
+                <option value="minigun">Minigun (Chuva de Balas Extrema)</option>
             </select>
 
             <label>MODO DE CONTROLE:</label>
@@ -123,13 +128,9 @@
                 <option value="pc">PC (Teclado WASD + Mouse)</option>
                 <option value="mobile">Mobile (Joystick na Tela)</option>
             </select>
-
-            <div class="char-preview" id="preview-box">
-                <div class="char-gun"></div>
-            </div>
         </div>
 
-        <button class="btn-play" onclick="joinGame()">ENTRAR NA BATALHA</button>
+        <button class="btn-play" onclick="joinGame()">ENTRAR NA GUERRA</button>
     </div>
 
     <div id="game-screen" class="screen">
@@ -137,17 +138,22 @@
 
         <div class="hud-top">
             <div class="stat-badge">
-                Vida: <span id="hp-txt">100</span>
+                HP: <span id="hp-txt">100</span>
                 <div class="hp-bar-container"><div id="hp-bar" class="hp-bar-fill"></div></div>
             </div>
             <div class="stat-badge">Munição: <strong id="ammo-txt">30</strong></div>
             <div class="stat-badge">Abates: <strong id="kills-txt">0</strong></div>
         </div>
 
+        <!-- Mini Mapa / Radar -->
+        <div class="minimap-container">
+            <canvas id="minimapCanvas" width="110" height="110"></canvas>
+        </div>
+
         <div class="chat-container">
             <div class="chat-messages" id="chat-msgs"></div>
             <div class="chat-input-row">
-                <input type="text" id="chat-txt" placeholder="Conversar..." maxlength="80">
+                <input type="text" id="chat-txt" placeholder="Dizer algo..." maxlength="80">
                 <button onclick="sendChat()">Enviar</button>
             </div>
         </div>
@@ -158,7 +164,7 @@
 
         <div class="controls-hud" id="mobile-buttons">
             <div class="action-btn reload-btn" onclick="socket.emit('reload')">REC</div>
-            <div class="action-btn" id="shoot-btn">ATIRAR</div>
+            <div class="action-btn" id="shoot-btn">FOGO</div>
         </div>
     </div>
 </div>
@@ -168,8 +174,11 @@
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
 
+    const minimapCanvas = document.getElementById("minimapCanvas");
+    const minimapCtx = minimapCanvas.getContext("2d");
+
     let inGame = false;
-    let myData = { name: '', skin: 'player_blue', weapon: 'glock', mode: 'pc' };
+    let myData = { name: '', gang: 'gang_command', weapon: 'glock', mode: 'pc' };
     let gameState = { players: {}, bullets: [] };
     let floatingTexts = [];
     
@@ -179,17 +188,9 @@
 
     let keys = { w: false, a: false, s: false, d: false };
 
-    function updatePreview() {
-        const skin = document.getElementById("skin-select").value;
-        const box = document.getElementById("preview-box");
-        if(skin === 'player_blue') box.style.background = '#3b82f6';
-        if(skin === 'player_red') box.style.background = '#ef4444';
-        if(skin === 'player_yellow') box.style.background = '#eab308';
-    }
-
     function joinGame() {
-        myData.name = document.getElementById("name-input").value.trim() || "Sobrevivente";
-        myData.skin = document.getElementById("skin-select").value;
+        myData.name = document.getElementById("name-input").value.trim() || "Guerreiro";
+        myData.gang = document.getElementById("gang-select").value;
         myData.weapon = document.getElementById("weapon-select").value;
         myData.mode = document.getElementById("control-mode").value;
 
@@ -202,7 +203,7 @@
         } else {
             document.getElementById("joystick-base").style.display = "none";
             document.getElementById("mobile-buttons").style.display = "none";
-            canvas.focus(); // Garante o foco do teclado para o PC
+            canvas.focus();
         }
 
         canvas.width = canvas.parentElement.clientWidth;
@@ -235,7 +236,7 @@
                 let dx = touch.clientX - baseCoords.x;
                 let dy = touch.clientY - baseCoords.y;
                 let dist = Math.hypot(dx, dy);
-                let maxDist = 40;
+                let maxDist = 35;
 
                 if (dist > maxDist) {
                     dx = (dx / dist) * maxDist;
@@ -263,7 +264,7 @@
     // Teclado PC global
     window.addEventListener("keydown", (e) => {
         if (myData.mode !== 'pc') return;
-        if (document.activeElement.tagName === 'INPUT') return; // Ignora se estiver digitando no chat
+        if (document.activeElement.tagName === 'INPUT') return;
         
         if (['KeyW', 'ArrowUp'].includes(e.code)) keys.w = true;
         if (['KeyS', 'ArrowDown'].includes(e.code)) keys.s = true;
@@ -296,9 +297,7 @@
     });
 
     canvas.addEventListener("mousedown", (e) => {
-        if (myData.mode === 'pc') {
-            socket.emit('shoot');
-        }
+        if (myData.mode === 'pc') socket.emit('shoot');
     });
 
     document.getElementById("shoot-btn").addEventListener("touchstart", (e) => { e.preventDefault(); socket.emit('shoot'); });
@@ -320,7 +319,7 @@
             y: data.y - 15,
             damage: data.damage,
             alpha: 1.0,
-            color: data.damage > 25 ? '#ef4444' : '#facc15'
+            color: data.damage > 30 ? '#ef4444' : '#facc15'
         });
     });
 
@@ -341,12 +340,13 @@
         }
     }
 
+    // VELOCIDADE SUPER RÁPIDA (8.5)
     setInterval(() => {
         if (!inGame) return;
         let me = gameState.players[socket.id];
         if (!me || !me.alive) return;
 
-        let speed = 5.5;
+        let speed = 8.5; 
 
         if (myData.mode === 'pc') {
             let dx = 0;
@@ -369,6 +369,31 @@
         }
     }, 1000 / 60);
 
+    function drawMinimap() {
+        minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+
+        // Fundo do radar
+        minimapCtx.fillStyle = "rgba(15, 23, 42, 0.9)";
+        minimapCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+
+        let mapSize = 1600;
+        let scale = minimapCanvas.width / mapSize;
+
+        // Desenhar todos os jogadores no radar
+        for (let id in gameState.players) {
+            let p = gameState.players[id];
+            if (!p.alive) continue;
+
+            let rx = p.x * scale;
+            let ry = p.y * scale;
+
+            minimapCtx.fillStyle = (id === socket.id) ? "#ffffff" : p.color;
+            minimapCtx.beginPath();
+            minimapCtx.arc(rx, ry, (id === socket.id) ? 3.5 : 2.5, 0, Math.PI * 2);
+            minimapCtx.fill();
+        }
+    }
+
     function gameLoop() {
         if (!inGame) return;
 
@@ -378,16 +403,18 @@
         let cameraX = me ? me.x - canvas.width / 2 : 0;
         let cameraY = me ? me.y - canvas.height / 2 : 0;
 
-        ctx.fillStyle = "#166534";
+        // CHÃO URBANO
+        ctx.fillStyle = "#1e293b";
         ctx.fillRect(-cameraX, -cameraY, 1600, 1600);
 
-        ctx.strokeStyle = "#15803d";
-        ctx.lineWidth = 2;
-        for(let i=0; i<=1600; i+=200) {
+        ctx.strokeStyle = "#334155";
+        ctx.lineWidth = 3;
+        for(let i=0; i<=1600; i+=150) {
             ctx.beginPath(); ctx.moveTo(i - cameraX, 0 - cameraY); ctx.lineTo(i - cameraX, 1600 - cameraY); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(0 - cameraX, i - cameraY); ctx.lineTo(1600 - cameraX, i - cameraY); ctx.stroke();
         }
 
+        // Balas
         ctx.fillStyle = "#facc15";
         gameState.bullets.forEach(b => {
             ctx.beginPath();
@@ -395,6 +422,7 @@
             ctx.fill();
         });
 
+        // Jogadores
         for (let id in gameState.players) {
             let p = gameState.players[id];
             if (!p.alive) continue;
@@ -403,25 +431,26 @@
             ctx.translate(p.x - cameraX, p.y - cameraY);
             ctx.rotate(p.angle);
 
-            ctx.fillStyle = p.skin === 'player_red' ? '#ef4444' : (p.skin === 'player_yellow' ? '#eab308' : '#3b82f6');
+            ctx.fillStyle = p.color;
             ctx.beginPath();
             ctx.arc(0, 0, 16, 0, Math.PI * 2);
             ctx.fill();
             ctx.lineWidth = 2;
-            ctx.strokeStyle = "#111";
+            ctx.strokeStyle = "#0f172a";
             ctx.stroke();
 
-            ctx.fillStyle = "#9ca3af";
-            ctx.fillRect(8, -4, 14, 8);
+            ctx.fillStyle = "#94a3b8";
+            ctx.fillRect(8, -4, 16, 8);
 
             ctx.restore();
 
             ctx.fillStyle = "#fff";
-            ctx.font = "11px sans-serif";
+            ctx.font = "10px sans-serif";
             ctx.textAlign = "center";
-            ctx.fillText(p.name, p.x - cameraX, p.y - cameraY - 24);
+            ctx.fillText(`[${p.gangName}] ${p.name}`, p.x - cameraX, p.y - cameraY - 24);
         }
 
+        // Danos Flutuantes
         for (let i = floatingTexts.length - 1; i >= 0; i--) {
             let ft = floatingTexts[i];
             ft.y -= 0.8;
@@ -435,11 +464,14 @@
             ctx.save();
             ctx.globalAlpha = ft.alpha;
             ctx.fillStyle = ft.color;
-            ctx.font = "bold 16px sans-serif";
+            ctx.font = "bold 15px sans-serif";
             ctx.textAlign = "center";
             ctx.fillText("-" + ft.damage, ft.x - cameraX, ft.y - cameraY);
             ctx.restore();
         }
+
+        // Atualizar Mini Mapa
+        drawMinimap();
 
         requestAnimationFrame(gameLoop);
     }
