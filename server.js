@@ -11,142 +11,162 @@ app.use(express.static('public'));
 let players = {};
 let bullets = [];
 
-const mapSize = 1600;
+// Definição das Gangues do Servidor
+const GANGS = {
+    'gang_command': { name: 'Comando da Cidade', color: '#ef4444' },
+    'gang_ravens': { name: 'Os Corvos', color: '#3b82f6' },
+    'gang_ghosts': { name: 'Os Fantasmas', color: '#a855f7' },
+    'gang_cartel': { name: 'Cartel Sombrio', color: '#eab308' }
+};
 
-const weaponsConfig = {
-    glock: { name: 'Glock 17', damage: 18, speed: 16, fireRate: 300, ammoMax: 15, range: 450 },
-    mp5:   { name: 'MP5',      damage: 14, speed: 18, fireRate: 120, ammoMax: 30, range: 550 },
-    ak47:  { name: 'AK-47',    damage: 32, speed: 20, fireRate: 200, ammoMax: 25, range: 750 },
-    xm8:   { name: 'XM8',      damage: 26, speed: 22, fireRate: 160, ammoMax: 30, range: 800 }
+// Definição do Arsenal Completo
+const WEAPONS = {
+    'glock': { damage: 15, speed: 14, maxAmmo: 17, reloadTime: 1200 },
+    'mp5':   { damage: 12, speed: 18, maxAmmo: 30, reloadTime: 1500 },
+    'ak47':  { damage: 28, speed: 16, maxAmmo: 25, reloadTime: 2000 },
+    'xm8':   { damage: 22, speed: 20, maxAmmo: 30, reloadTime: 1800 },
+    'shotgun': { damage: 45, speed: 12, maxAmmo: 8, reloadTime: 2500 },
+    'minigun': { damage: 10, speed: 22, maxAmmo: 100, reloadTime: 3500 }
 };
 
 io.on('connection', (socket) => {
     console.log(`Sobrevivente conectado: ${socket.id}`);
 
     socket.on('joinGame', (data) => {
-        let weapon = weaponsConfig[data.weapon] ? data.weapon : 'glock';
-        
+        let weaponInfo = WEAPONS[data.weapon] || WEAPONS['glock'];
+        let gangData = GANGS[data.gang] || GANGS['gang_command'];
+
         players[socket.id] = {
             id: socket.id,
-            name: data.name || 'Convidado',
+            name: data.name || 'Anônimo',
+            gang: data.gang || 'gang_command',
+            gangName: gangData.name,
+            color: gangData.color,
             skin: data.skin || 'player_blue',
-            weapon: weapon,
-            x: Math.random() * (mapSize - 400) + 200,
-            y: Math.random() * (mapSize - 400) + 200,
+            weapon: data.weapon || 'glock',
+            x: Math.random() * 1200 + 200,
+            y: Math.random() * 1200 + 200,
             angle: 0,
             hp: 100,
-            ammo: weaponsConfig[weapon].ammoMax,
+            ammo: weaponInfo.maxAmmo,
+            maxAmmo: weaponInfo.maxAmmo,
             kills: 0,
             alive: true,
-            lastShot: 0
+            reloading: false
         };
-
-        io.emit('chatMessage', { sender: 'Sistema', text: `${players[socket.id].name} caiu de paraquedas na ilha!` });
     });
 
-    socket.on('playerMove', (movement) => {
+    socket.on('playerMove', (data) => {
         let p = players[socket.id];
-        if (!p || !p.alive) return;
-
-        p.x = Math.max(20, Math.min(mapSize - 20, movement.x));
-        p.y = Math.max(20, Math.min(mapSize - 20, movement.y));
-        p.angle = movement.angle;
+        if (p && p.alive) {
+            // Delimita os limites do mapa (1600x1600)
+            p.x = Math.max(30, Math.min(1570, data.x));
+            p.y = Math.max(30, Math.min(1570, data.y));
+            p.angle = data.angle;
+        }
     });
 
     socket.on('shoot', () => {
         let p = players[socket.id];
-        if (!p || !p.alive) return;
+        if (!p || !p.alive || p.reloading) return;
 
-        let now = Date.now();
-        let wConfig = weaponsConfig[p.weapon];
+        if (p.ammo > 0) {
+            p.ammo--;
+            let weaponInfo = WEAPONS[p.weapon] || WEAPONS['glock'];
 
-        if (now - p.lastShot < wConfig.fireRate) return;
-        if (p.ammo <= 0) return;
-
-        p.ammo--;
-        p.lastShot = now;
-
-        bullets.push({
-            id: Math.random().toString(),
-            ownerId: socket.id,
-            x: p.x + Math.cos(p.angle) * 25,
-            y: p.y + Math.sin(p.angle) * 25,
-            vx: Math.cos(p.angle) * wConfig.speed,
-            vy: Math.sin(p.angle) * wConfig.speed,
-            damage: wConfig.damage,
-            range: wConfig.range,
-            travelled: 0
-        });
+            bullets.push({
+                id: Math.random().toString(36).substr(2, 9),
+                ownerId: socket.id,
+                x: p.x + Math.cos(p.angle) * 20,
+                y: p.y + Math.sin(p.angle) * 20,
+                vx: Math.cos(p.angle) * weaponInfo.speed,
+                vy: Math.sin(p.angle) * weaponInfo.speed,
+                damage: weaponInfo.damage
+            });
+        }
     });
 
     socket.on('reload', () => {
         let p = players[socket.id];
-        if (!p || !p.alive) return;
-        p.ammo = weaponsConfig[p.weapon].ammoMax;
+        if (!p || !p.alive || p.reloading) return;
+
+        let weaponInfo = WEAPONS[p.weapon] || WEAPONS['glock'];
+        if (p.ammo < weaponInfo.maxAmmo) {
+            p.reloading = true;
+            setTimeout(() => {
+                if (players[socket.id]) {
+                    players[socket.id].ammo = weaponInfo.maxAmmo;
+                    players[socket.id].reloading = false;
+                }
+            }, weaponInfo.reloadTime);
+        }
     });
 
-    socket.on('chatMessage', (msgText) => {
+    socket.on('chatMessage', (text) => {
         let p = players[socket.id];
-        if (!p) return;
-        let cleanText = msgText.substring(0, 100);
-        io.emit('chatMessage', { sender: p.name, text: cleanText });
+        if (p) {
+            io.emit('chatMessage', { sender: `[${p.gangName}] ${p.name}`, text: text.substring(0, 80) });
+        }
     });
 
     socket.on('disconnect', () => {
-        if (players[socket.id]) {
-            io.emit('chatMessage', { sender: 'Sistema', text: `${players[socket.id].name} foi eliminado da partida.` });
-            delete players[socket.id];
-        }
+        delete players[socket.id];
+        console.log(`Sobrevivente desconectado: ${socket.id}`);
     });
 });
 
+// Loop Principal do Servidor (60 FPS)
 setInterval(() => {
+    // Atualizar Balas
     for (let i = bullets.length - 1; i >= 0; i--) {
         let b = bullets[i];
         b.x += b.vx;
         b.y += b.vy;
-        b.travelled += Math.hypot(b.vx, b.vy);
 
-        if (b.travelled >= b.range || b.x < 0 || b.x > mapSize || b.y < 0 || b.y > mapSize) {
+        // Remover bala se sair do mapa
+        if (b.x < 0 || b.x > 1600 || b.y < 0 || b.y > 1600) {
             bullets.splice(i, 1);
             continue;
         }
 
+        // Colisão com Jogadores
         let hit = false;
         for (let id in players) {
             let p = players[id];
-            if (!p.alive || id === b.ownerId) continue;
+            if (p.alive && id !== b.ownerId) {
+                let dist = Math.hypot(p.x - b.x, p.y - b.y);
+                if (dist < 18) { // Acertou o jogador
+                    p.hp -= b.damage;
+                    hit = true;
 
-            let dist = Math.hypot(p.x - b.x, p.y - b.y);
-            if (dist < 18) {
-                p.hp -= b.damage;
-                hit = true;
+                    io.to(id).emit('spawnDamage', { x: p.x, y: p.y, damage: b.damage });
 
-                io.emit('spawnDamage', { x: p.x, y: p.y, damage: b.damage });
-
-                if (p.hp <= 0) {
-                    p.alive = false;
-                    p.hp = 0;
-                    
-                    let killer = players[b.ownerId];
-                    if (killer) {
-                        killer.kills++;
-                        io.emit('chatMessage', { sender: '💀', text: `${killer.name} eliminou ${p.name}!` });
-                    }
-
-                    setTimeout(() => {
-                        if (players[id]) {
-                            players[id].hp = 100;
-                            players[id].ammo = weaponsConfig[players[id].weapon].ammoMax;
-                            players[id].x = Math.random() * (mapSize - 400) + 200;
-                            players[id].y = Math.random() * (mapSize - 400) + 200;
-                            players[id].alive = true;
+                    if (p.hp <= 0) {
+                        p.hp = 0;
+                        p.alive = false;
+                        
+                        let killer = players[b.ownerId];
+                        if (killer) {
+                            killer.kills++;
                         }
-                    }, 3000);
+
+                        // Respawn automático após 3 segundos
+                        setTimeout(() => {
+                            if (players[id]) {
+                                players[id].hp = 100;
+                                players[id].alive = true;
+                                players[id].x = Math.random() * 1200 + 200;
+                                players[id].y = Math.random() * 1200 + 200;
+                                let wInfo = WEAPONS[players[id].weapon];
+                                players[id].ammo = wInfo ? wInfo.maxAmmo : 30;
+                            }
+                        }, 3000);
+                    }
+                    break;
                 }
-                break;
             }
         }
+
         if (hit) {
             bullets.splice(i, 1);
         }
@@ -157,5 +177,5 @@ setInterval(() => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Battle Royale rodando na porta ${PORT}`);
+    console.log(`Servidor rodando na porta ${PORT}`);
 });
