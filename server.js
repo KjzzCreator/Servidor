@@ -14,10 +14,10 @@ let bullets = [];
 const mapSize = 1600;
 
 const weaponsConfig = {
-    glock: { name: 'Glock 17', damage: 18, speed: 12, fireRate: 350, ammoMax: 15, range: 400 },
-    mp5:   { name: 'MP5',      damage: 14, speed: 14, fireRate: 150, ammoMax: 30, range: 500 },
-    ak47:  { name: 'AK-47',    damage: 32, speed: 16, fireRate: 250, ammoMax: 25, range: 700 },
-    xm8:   { name: 'XM8',      damage: 26, speed: 18, fireRate: 200, ammoMax: 30, range: 750 }
+    glock: { name: 'Glock 17', damage: 18, speed: 16, fireRate: 300, ammoMax: 15, range: 450 },
+    mp5:   { name: 'MP5',      damage: 14, speed: 18, fireRate: 120, ammoMax: 30, range: 550 },
+    ak47:  { name: 'AK-47',    damage: 32, speed: 20, fireRate: 200, ammoMax: 25, range: 750 },
+    xm8:   { name: 'XM8',      damage: 26, speed: 22, fireRate: 160, ammoMax: 30, range: 800 }
 };
 
 io.on('connection', (socket) => {
@@ -122,7 +122,6 @@ setInterval(() => {
                 p.hp -= b.damage;
                 hit = true;
 
-                // Envia evento de Dano Flutuante para todos na sala
                 io.emit('spawnDamage', { x: p.x, y: p.y, damage: b.damage });
 
                 if (p.hp <= 0) {
