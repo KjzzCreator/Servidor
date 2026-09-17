@@ -11,11 +11,11 @@ app.use(express.static('public'));
 let players = {};
 let foods = [];
 
-// Gerar comidas iniciais no servidor
-const worldWidth = 1000;
-const worldHeight = 1000;
+const worldWidth = 1200;
+const worldHeight = 1200;
 
-for (let i = 0; i < 100; i++) {
+// Gerar comidas iniciais
+for (let i = 0; i < 150; i++) {
     foods.push({
         id: Math.random().toString(),
         x: Math.random() * worldWidth,
@@ -28,67 +28,125 @@ io.on('connection', (socket) => {
     console.log(`Jogador conectado: ${socket.id}`);
 
     socket.on('joinGame', (data) => {
+        let startX = Math.random() * (worldWidth - 400) + 200;
+        let startY = Math.random() * (worldHeight - 400) + 200;
+        
         players[socket.id] = {
             id: socket.id,
             name: data.name,
             skin: data.skin,
             snake: [
-                { x: worldWidth / 2, y: worldHeight / 2 },
-                { x: worldWidth / 2, y: worldHeight / 2 + 10 }
+                { x: startX, y: startY },
+                { x: startX, y: startY + 10 },
+                { x: startX, y: startY + 20 }
             ],
-            score: 10
+            score: 15,
+            alive: true
         };
     });
 
     socket.on('updateMovement', (target) => {
         let player = players[socket.id];
-        if (!player) return;
+        if (!player || !player.alive) return;
 
         let head = player.snake[0];
         let angle = Math.atan2(target.y - head.y, target.x - head.x);
-        let speed = 1.5;
+        let speed = 1.8;
 
         let newX = head.x + Math.cos(angle) * speed;
         let newY = head.y + Math.sin(angle) * speed;
 
-        // Limites da arena
-        if (newX >= 0 && newX <= worldWidth && newY >= 0 && newY <= worldHeight) {
-            player.snake.unshift({ x: newX, y: newY });
+        // Morrer se bater nas paredes
+        if (newX < 0 || newX > worldWidth || newY < 0 || newY > worldHeight) {
+            killPlayer(socket.id);
+            return;
+        }
 
-            // Comer comida
-            let ate = false;
-            for (let i = foods.length - 1; i >= 0; i--) {
-                let f = foods[i];
-                let dist = Math.hypot(newX - f.x, newY - f.y);
-                if (dist < 12) {
-                    foods.splice(i, 1);
-                    // Repõe comida
-                    foods.push({
-                        id: Math.random().toString(),
-                        x: Math.random() * worldWidth,
-                        y: Math.random() * worldHeight,
-                        color: `hsl(${Math.random() * 360}, 100%, 60%)`
-                    });
-                    ate = true;
-                    break;
-                }
+        let newHead = { x: newX, y: newY };
+        player.snake.unshift(newHead);
+
+        // Checar colisão com comidas
+        let ate = false;
+        for (let i = foods.length - 1; i >= 0; i--) {
+            let f = foods[i];
+            let dist = Math.hypot(newHead.x - f.x, newHead.y - f.y);
+            if (dist < 14) {
+                foods.splice(i, 1);
+                foods.push({
+                    id: Math.random().toString(),
+                    x: Math.random() * worldWidth,
+                    y: Math.random() * worldHeight,
+                    color: `hsl(${Math.random() * 360}, 100%, 60%)`
+                });
+                ate = true;
+                break;
             }
+        }
 
-            if (!ate) {
-                player.snake.pop();
-            } else {
-                player.score = player.snake.length;
+        if (!ate) {
+            player.snake.pop();
+        } else {
+            player.snake.push({ ...player.snake[player.snake.length - 1] });
+        }
+        player.score = player.snake.length;
+
+        // Checar colisão APENAS com o corpo de OUTROS jogadores (O próprio corpo é ignorado)
+        for (let id in players) {
+            let p = players[id];
+            if (!p.alive) continue;
+
+            for (let j = 0; j < p.snake.length; j++) {
+                // Se for o próprio jogador, ignora a colisão com o próprio corpo inteiro
+                if (id === socket.id) continue;
+
+                let part = p.snake[j];
+                let dist = Math.hypot(newHead.x - part.x, newHead.y - part.y);
+                if (dist < 10) {
+                    killPlayer(socket.id);
+                    return;
+                }
             }
         }
     });
 
     socket.on('disconnect', () => {
-        console.log(`Jogador desconectado: ${socket.id}`);
-        delete players[socket.id];
+        if (players[socket.id]) {
+            turnSnakeIntoFood(players[socket.id]);
+            delete players[socket.id];
+        }
     });
 });
 
-// Enviar estado do jogo para todos os clientes 30 vezes por segundo
+function killPlayer(id) {
+    if (!players[id]) return;
+    players[id].alive = false;
+    turnSnakeIntoFood(players[id]);
+    io.to(id).emit('die');
+    
+    setTimeout(() => {
+        if (players[id]) {
+            let startX = Math.random() * (worldWidth - 400) + 200;
+            let startY = Math.random() * (worldHeight - 400) + 200;
+            players[id].snake = [{ x: startX, y: startY }, { x: startX, y: startY + 10 }];
+            players[id].score = 10;
+            players[id].alive = true;
+        }
+    }, 2000);
+}
+
+function turnSnakeIntoFood(player) {
+    player.snake.forEach((part, index) => {
+        if (index % 2 === 0) {
+            foods.push({
+                id: Math.random().toString(),
+                x: part.x + (Math.random() * 20 - 10),
+                y: part.y + (Math.random() * 20 - 10),
+                color: player.skin === 'rainbow' ? '#ff00ff' : '#00ffcc'
+            });
+        }
+    });
+}
+
 setInterval(() => {
     io.emit('gameState', { players, foods });
 }, 1000 / 30);
