@@ -19,12 +19,12 @@ const GANGS = {
 };
 
 const WEAPONS = {
-    'glock': { damage: 15, speed: 1.2, maxAmmo: 17, reloadTime: 1200 },
-    'mp5':   { damage: 12, speed: 1.5, maxAmmo: 30, reloadTime: 1500 },
-    'ak47':  { damage: 28, speed: 1.4, maxAmmo: 25, reloadTime: 2000 },
-    'xm8':   { damage: 22, speed: 1.6, maxAmmo: 30, reloadTime: 1800 },
-    'shotgun': { damage: 45, speed: 1.0, maxAmmo: 8, reloadTime: 2500 },
-    'minigun': { damage: 10, speed: 1.8, maxAmmo: 100, reloadTime: 3500 }
+    'glock': { damage: 15, speed: 1.5, maxAmmo: 17, reloadTime: 1200 },
+    'mp5':   { damage: 12, speed: 1.8, maxAmmo: 30, reloadTime: 1500 },
+    'ak47':  { damage: 28, speed: 1.7, maxAmmo: 25, reloadTime: 2000 },
+    'xm8':   { damage: 22, speed: 1.9, maxAmmo: 30, reloadTime: 1800 },
+    'shotgun': { damage: 45, speed: 1.3, maxAmmo: 8, reloadTime: 2500 },
+    'minigun': { damage: 10, speed: 2.2, maxAmmo: 100, reloadTime: 3500 }
 };
 
 io.on('connection', (socket) => {
@@ -43,7 +43,7 @@ io.on('connection', (socket) => {
             skin: data.skin || 'player_blue',
             weapon: data.weapon || 'glock',
             x: Math.random() * 800 - 400,
-            y: 0.75, // Altura padrão do boneco 3D no chão
+            y: 0.75,
             z: Math.random() * 800 - 400,
             angle: 0,
             hp: 100,
@@ -73,13 +73,11 @@ io.on('connection', (socket) => {
             let weaponInfo = WEAPONS[p.weapon] || WEAPONS['glock'];
 
             bullets.push({
-                id: Math.random().toString(36).substr(2, 9),
                 ownerId: socket.id,
                 x: p.x + Math.sin(p.angle) * 15,
-                y: 0.75,
                 z: p.z + Math.cos(p.angle) * 15,
-                vx: Math.sin(p.angle) * 18,
-                vz: Math.cos(p.angle) * 18,
+                vx: Math.sin(p.angle) * (weaponInfo.speed * 1.5),
+                vz: Math.cos(p.angle) * (weaponInfo.speed * 1.5),
                 damage: weaponInfo.damage
             });
         }
@@ -114,6 +112,7 @@ io.on('connection', (socket) => {
     });
 });
 
+// Loop principal do servidor otimizado para 30 FPS (reduz o lag pela metade)
 setInterval(() => {
     for (let i = bullets.length - 1; i >= 0; i--) {
         let b = bullets[i];
@@ -163,9 +162,9 @@ setInterval(() => {
     }
 
     io.emit('gameState', { players, bullets });
-}, 1000 / 60);
+}, 1000 / 30);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Servidor 3D rodando na porta ${PORT}`);
+    console.log(`Servidor 3D otimizado rodando na porta ${PORT}`);
 });
