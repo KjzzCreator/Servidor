@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Battle Royale - Gang Wars Style</title>
+    <title>Gang Wars 3D - Battle Royale</title>
     <style>
         body {
             margin: 0; padding: 0; background: #0b0f19; color: #fff;
@@ -39,7 +39,7 @@
         .btn-play:active { transform: scale(0.98); }
 
         #game-screen { padding: 0; position: relative; }
-        canvas { display: block; background: #1e293b; width: 100%; height: 100%; outline: none; }
+        #webgl-container { width: 100%; height: 100%; outline: none; display: block; }
 
         .hud-top {
             position: absolute; top: 10px; left: 10px; right: 10px;
@@ -50,7 +50,6 @@
         .hp-bar-container { width: 90px; height: 8px; background: #374151; border-radius: 4px; overflow: hidden; margin-top: 2px; }
         .hp-bar-fill { width: 100%; height: 100%; background: #10b981; transition: width 0.2s; }
 
-        /* MINI MAPA / RADAR */
         .minimap-container {
             position: absolute; top: 60px; right: 10px; width: 110px; height: 110px;
             background: rgba(15, 23, 42, 0.85); border: 2px solid rgba(255, 255, 255, 0.2);
@@ -92,18 +91,20 @@
         .action-btn:active { transform: scale(0.9); background: #dc2626; }
         .reload-btn { background: rgba(59, 130, 246, 0.85); border-color: #60a5fa; }
     </style>
+    <!-- Incluindo a biblioteca Three.js para renderização 3D -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
 
 <div class="container">
     <div id="lobby-screen" class="screen active">
-        <h1>Gang Wars Arena</h1>
-        <div class="subtitle">Escolha sua Facção e seu Arsenal</div>
+        <h1>Gang Wars 3D</h1>
+        <div class="subtitle">Arena Tridimensional de Facções</div>
 
         <div class="lobby-box">
             <label>NOME DO GUERREIRO:</label>
-            <input type="text" id="name-input" value="Bandidão" maxlength="15">
+            <input type="text" id="name-input" value="Bandidão 3D" maxlength="15">
 
             <label>ESCOLHA SUA GANGUE:</label>
             <select id="gang-select">
@@ -130,11 +131,11 @@
             </select>
         </div>
 
-        <button class="btn-play" onclick="joinGame()">ENTRAR NA GUERRA</button>
+        <button class="btn-play" onclick="joinGame()">ENTRAR NA GUERRA 3D</button>
     </div>
 
     <div id="game-screen" class="screen">
-        <canvas id="gameCanvas" tabindex="1"></canvas>
+        <div id="webgl-container"></div>
 
         <div class="hud-top">
             <div class="stat-badge">
@@ -145,7 +146,6 @@
             <div class="stat-badge">Abates: <strong id="kills-txt">0</strong></div>
         </div>
 
-        <!-- Mini Mapa / Radar -->
         <div class="minimap-container">
             <canvas id="minimapCanvas" width="110" height="110"></canvas>
         </div>
@@ -171,22 +171,79 @@
 
 <script>
     const socket = io();
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-
-    const minimapCanvas = document.getElementById("minimapCanvas");
-    const minimapCtx = minimapCanvas.getContext("2d");
-
     let inGame = false;
     let myData = { name: '', gang: 'gang_command', weapon: 'glock', mode: 'pc' };
     let gameState = { players: {}, bullets: [] };
-    let floatingTexts = [];
     
     let moveAngle = 0;
     let isMoving = false;
     let aimAngle = 0;
-
     let keys = { w: false, a: false, s: false, d: false };
+
+    // Three.js Variáveis Globais
+    let scene, camera, renderer;
+    let playerMeshes = {};
+    let bulletMeshes = [];
+    const minimapCanvas = document.getElementById("minimapCanvas");
+    const minimapCtx = minimapCanvas.getContext("2d");
+
+    function init3D() {
+        const container = document.getElementById("webgl-container");
+        container.innerHTML = "";
+
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0f172a);
+        scene.fog = new THREE.FogExp2(0x0f172a, 0.003);
+
+        camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 2000);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.shadowMap.enabled = true;
+        container.appendChild(renderer.domElement);
+
+        // Luzes da Cena
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(200, 400, 200);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        // Chão Urbano 3D
+        const floorGeo = new THREE.PlaneGeometry(1000, 1000);
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // Adicionar Prédios / Blocos Urbanos Decorativos
+        const buildingMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
+        for (let i = -400; i <= 400; i += 200) {
+            for (let j = -400; j <= 400; j += 200) {
+                if (i === 0 && j === 0) continue;
+                let h = 40 + Math.random() * 80;
+                let bGeo = new THREE.BoxGeometry(60, h, 60);
+                let building = new THREE.Mesh(bGeo, buildingMat);
+                building.position.set(i, h / 2, j);
+                building.castShadow = true;
+                building.receiveShadow = true;
+                scene.add(building);
+            }
+        }
+
+        window.addEventListener('resize', onWindowResize);
+    }
+
+    function onWindowResize() {
+        const container = document.getElementById("webgl-container");
+        if (!container) return;
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+    }
 
     function joinGame() {
         myData.name = document.getElementById("name-input").value.trim() || "Guerreiro";
@@ -203,15 +260,12 @@
         } else {
             document.getElementById("joystick-base").style.display = "none";
             document.getElementById("mobile-buttons").style.display = "none";
-            canvas.focus();
         }
 
-        canvas.width = canvas.parentElement.clientWidth;
-        canvas.height = canvas.parentElement.clientHeight;
-
+        init3D();
         socket.emit('joinGame', myData);
         inGame = true;
-        requestAnimationFrame(gameLoop);
+        animate3D();
     }
 
     // Joystick Mobile
@@ -244,7 +298,7 @@
                 }
 
                 joystickStick.style.transform = `translate(${dx}px, ${dy}px)`;
-                moveAngle = Math.atan2(dy, dx);
+                moveAngle = Math.atan2(dx, dy);
                 aimAngle = moveAngle;
                 isMoving = true;
             }
@@ -281,23 +335,30 @@
         if (['KeyD', 'ArrowRight'].includes(e.code)) keys.d = false;
     });
 
-    // Mouse PC
-    canvas.addEventListener("mousemove", (e) => {
-        if (myData.mode !== 'pc') return;
-        const rect = canvas.getBoundingClientRect();
-        let mouseX = e.clientX - rect.left;
-        let mouseY = e.clientY - rect.top;
-        
+    // Mouse PC 3D Raycasting
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const planeGround = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+    window.addEventListener("mousemove", (e) => {
+        if (myData.mode !== 'pc' || !inGame) return;
+        const container = document.getElementById("webgl-container");
+        const rect = container.getBoundingClientRect();
+        mouse.x = ((e.clientX - rect.left) / container.clientWidth) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / container.clientHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        let targetPoint = new THREE.Vector3();
+        raycaster.ray.intersectPlane(planeGround, targetPoint);
+
         let me = gameState.players[socket.id];
         if (me) {
-            let cameraX = me.x - canvas.width / 2;
-            let cameraY = me.y - canvas.height / 2;
-            aimAngle = Math.atan2((mouseY + cameraY) - me.y, (mouseX + cameraX) - me.x);
+            aimAngle = Math.atan2(targetPoint.x - me.x, targetPoint.z - me.z);
         }
     });
 
-    canvas.addEventListener("mousedown", (e) => {
-        if (myData.mode === 'pc') socket.emit('shoot');
+    window.addEventListener("mousedown", (e) => {
+        if (myData.mode === 'pc' && inGame) socket.emit('shoot');
     });
 
     document.getElementById("shoot-btn").addEventListener("touchstart", (e) => { e.preventDefault(); socket.emit('shoot'); });
@@ -311,16 +372,6 @@
             document.getElementById("ammo-txt").innerText = me.ammo;
             document.getElementById("kills-txt").innerText = me.kills;
         }
-    });
-
-    socket.on('spawnDamage', (data) => {
-        floatingTexts.push({
-            x: data.x + (Math.random() * 20 - 10),
-            y: data.y - 15,
-            damage: data.damage,
-            alpha: 1.0,
-            color: data.damage > 30 ? '#ef4444' : '#facc15'
-        });
     });
 
     socket.on('chatMessage', (data) => {
@@ -346,134 +397,109 @@
         let me = gameState.players[socket.id];
         if (!me || !me.alive) return;
 
-        let speed = 8.5; 
+        let speed = 6.5;
 
         if (myData.mode === 'pc') {
             let dx = 0;
-            let dy = 0;
-            if (keys.w) dy -= 1;
-            if (keys.s) dy += 1;
+            let dz = 0;
+            if (keys.w) dz -= 1;
+            if (keys.s) dz += 1;
             if (keys.a) dx -= 1;
             if (keys.d) dx += 1;
 
-            if (dx !== 0 || dy !== 0) {
-                let angleDir = Math.atan2(dy, dx);
-                let newX = me.x + Math.cos(angleDir) * speed;
-                let newY = me.y + Math.sin(angleDir) * speed;
-                socket.emit('playerMove', { x: newX, y: newY, angle: aimAngle });
+            if (dx !== 0 || dz !== 0) {
+                let moveDir = Math.atan2(dx, dz);
+                let newX = me.x + Math.sin(moveDir) * speed;
+                let newZ = me.z + Math.cos(moveDir) * speed;
+                socket.emit('playerMove', { x: newX, z: newZ, angle: aimAngle });
             }
         } else if (myData.mode === 'mobile' && isMoving) {
-            let newX = me.x + Math.cos(moveAngle) * speed;
-            let newY = me.y + Math.sin(moveAngle) * speed;
-            socket.emit('playerMove', { x: newX, y: newY, angle: aimAngle });
+            let newX = me.x + Math.sin(moveAngle) * speed;
+            let newZ = me.z + Math.cos(moveAngle) * speed;
+            socket.emit('playerMove', { x: newX, z: newZ, angle: aimAngle });
         }
     }, 1000 / 60);
 
     function drawMinimap() {
         minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
-
-        // Fundo do radar
         minimapCtx.fillStyle = "rgba(15, 23, 42, 0.9)";
         minimapCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
 
-        let mapSize = 1600;
+        let mapSize = 1000;
         let scale = minimapCanvas.width / mapSize;
 
-        // Desenhar todos os jogadores no radar
         for (let id in gameState.players) {
             let p = gameState.players[id];
             if (!p.alive) continue;
 
-            let rx = p.x * scale;
-            let ry = p.y * scale;
+            let rx = (p.x + 500) * scale;
+            let ry = (p.z + 500) * scale;
 
-            minimapCtx.fillStyle = (id === socket.id) ? "#ffffff" : p.color;
+            minimapCtx.fillStyle = (id === socket.id) ? "#ffffff" : "#ef4444";
             minimapCtx.beginPath();
             minimapCtx.arc(rx, ry, (id === socket.id) ? 3.5 : 2.5, 0, Math.PI * 2);
             minimapCtx.fill();
         }
     }
 
-    function gameLoop() {
+    function animate3D() {
         if (!inGame) return;
+        requestAnimationFrame(animate3D);
 
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        let me = gameState.players[socket.id];
-        let cameraX = me ? me.x - canvas.width / 2 : 0;
-        let cameraY = me ? me.y - canvas.height / 2 : 0;
-
-        // CHÃO URBANO
-        ctx.fillStyle = "#1e293b";
-        ctx.fillRect(-cameraX, -cameraY, 1600, 1600);
-
-        ctx.strokeStyle = "#334155";
-        ctx.lineWidth = 3;
-        for(let i=0; i<=1600; i+=150) {
-            ctx.beginPath(); ctx.moveTo(i - cameraX, 0 - cameraY); ctx.lineTo(i - cameraX, 1600 - cameraY); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0 - cameraX, i - cameraY); ctx.lineTo(1600 - cameraX, i - cameraY); ctx.stroke();
-        }
-
-        // Balas
-        ctx.fillStyle = "#facc15";
-        gameState.bullets.forEach(b => {
-            ctx.beginPath();
-            ctx.arc(b.x - cameraX, b.y - cameraY, 4, 0, Math.PI * 2);
-            ctx.fill();
-        });
-
-        // Jogadores
+        // Atualizar / Sincronizar Modelos 3D dos Jogadores
+        let activeIds = [];
         for (let id in gameState.players) {
             let p = gameState.players[id];
-            if (!p.alive) continue;
+            activeIds.push(id);
 
-            ctx.save();
-            ctx.translate(p.x - cameraX, p.y - cameraY);
-            ctx.rotate(p.angle);
-
-            ctx.fillStyle = p.color;
-            ctx.beginPath();
-            ctx.arc(0, 0, 16, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = "#0f172a";
-            ctx.stroke();
-
-            ctx.fillStyle = "#94a3b8";
-            ctx.fillRect(8, -4, 16, 8);
-
-            ctx.restore();
-
-            ctx.fillStyle = "#fff";
-            ctx.font = "10px sans-serif";
-            ctx.textAlign = "center";
-            ctx.fillText(`[${p.gangName}] ${p.name}`, p.x - cameraX, p.y - cameraY - 24);
-        }
-
-        // Danos Flutuantes
-        for (let i = floatingTexts.length - 1; i >= 0; i--) {
-            let ft = floatingTexts[i];
-            ft.y -= 0.8;
-            ft.alpha -= 0.02;
-
-            if (ft.alpha <= 0) {
-                floatingTexts.splice(i, 1);
-                continue;
+            if (!playerMeshes[id]) {
+                // Criar cilindro para representar o boneco 3D
+                let geom = new THREE.CylinderGeometry(8, 8, 30, 16);
+                let mat = new THREE.MeshStandardMaterial({ color: p.color });
+                let mesh = new THREE.Mesh(geom, mat);
+                mesh.castShadow = true;
+                scene.add(mesh);
+                playerMeshes[id] = mesh;
             }
 
-            ctx.save();
-            ctx.globalAlpha = ft.alpha;
-            ctx.fillStyle = ft.color;
-            ctx.font = "bold 15px sans-serif";
-            ctx.textAlign = "center";
-            ctx.fillText("-" + ft.damage, ft.x - cameraX, ft.y - cameraY);
-            ctx.restore();
+            let mesh = playerMeshes[id];
+            if (p.alive) {
+                mesh.visible = true;
+                mesh.position.set(p.x, 15, p.z);
+                mesh.rotation.y = p.angle;
+            } else {
+                mesh.visible = false;
+            }
+
+            // Se for o meu player, atualizar a câmera 3D em terceira pessoa (estilo God View inclinada)
+            if (id === socket.id && p.alive) {
+                camera.position.set(p.x, p.positionY = 220, p.z + 180);
+                camera.lookAt(p.x, 0, p.z - 20);
+            }
         }
 
-        // Atualizar Mini Mapa
-        drawMinimap();
+        // Remover players desconectados
+        for (let id in playerMeshes) {
+            if (!activeIds.includes(id)) {
+                scene.remove(playerMeshes[id]);
+                delete playerMeshes[id];
+            }
+        }
 
-        requestAnimationFrame(gameLoop);
+        // Sincronizar Balas 3D
+        bulletMeshes.forEach(b => scene.remove(b));
+        bulletMeshes = [];
+        gameState.bullets.forEach(b => {
+            let bGeo = new THREE.SphereGeometry(3, 8, 8);
+            let bMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+            let bMesh = new THREE.Mesh(bGeo, bMat);
+            bMesh.position.set(b.x, 15, b.z);
+            scene.add(bMesh);
+            bulletMeshes.push(bMesh);
+        });
+
+        drawMinimap();
+        renderer.render(scene, camera);
     }
 </script>
 </body>
